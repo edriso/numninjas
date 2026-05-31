@@ -1,0 +1,38 @@
+{
+  "name": "numninjas-channel",
+  "version": "1.0.0",
+  "private": true,
+  "type": "module",
+  "main": "dist/src/index.js",
+  "scripts": {
+    "dev": "tsx watch src/index.ts",
+    "build": "tsc",
+    "start": "node --import tsx dist/src/index.js",
+    "typecheck": "tsc --noEmit",
+    "test": "vitest run",
+    "test:watch": "vitest",
+    "send-test": "tsx scripts/send-test.ts",
+    "post-welcome": "tsx scripts/post-welcome.ts",
+    "audit-questions": "tsx scripts/audit-questions.ts",
+    "format": "prettier --write \"**/*.{ts,js,json,md,yml,yaml}\"",
+    "format:check": "prettier --check \"**/*.{ts,js,json,md,yml,yaml}\""
+  },
+  "engines": {
+    "node": ">=20.0.0"
+  },
+  "dependencies": {
+    "grammy": "^1.42.0",
+    "node-cron": "^4.2.1",
+    "tsx": "^4.21.0"
+  },
+  "optionalDependencies": {
+    "dotenv": "^17.4.0"
+  },
+  "devDependencies": {
+    "@types/node": "^22.10.0",
+    "@types/node-cron": "^3.0.11",
+    "prettier": "^3.8.3",
+    "typescript": "^5.7.0",
+    "vitest": "^4.1.6"
+  }
+}
