@@ -22,6 +22,7 @@ The feedback is instant and anonymous. Nobody can see who voted what.
 
 Two questions, posted together every morning (default 07:00 in the configured timezone): the warm-up first, then the challenge.
 
+- **One quiet ping.** To keep the morning calm, the whole batch goes out as a single notification: the context messages and the warm-up are sent silently, and only the day's challenge poll makes a sound. Followers still get both questions; their phone just buzzes once.
 - **Morning only.** A single early session rewards waking up early and posts nothing at night, so the channel never competes with bedtime. Good sleep and an early start matter more for this age than squeezing in an evening puzzle.
 - **Two, not one.** Research on kids aged 10 to 12 favours short, frequent practice. Two 30-second puzzles, an easy one to build confidence and a harder one to stretch, is a "little and often" morning warm-up for the brain, not a long study block.
 

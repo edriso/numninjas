@@ -10,12 +10,15 @@ import { logger } from './logger';
 export async function postContextMessage(
   bot: Bot<Context>,
   html: string,
-  meta: { questionId?: string } = {},
+  meta: { questionId?: string; silent?: boolean } = {},
 ): Promise<number | null> {
   try {
     const message = await bot.api.sendMessage(config.channelChatId, html, {
       parse_mode: 'HTML',
       link_preview_options: { is_disabled: true },
+      // Silent posts arrive without a sound/vibration (still visible in the
+      // channel). The context message is setup text, so it never needs a ping.
+      disable_notification: meta.silent ?? false,
     });
     logger.info('Posted context message', {
       questionId: meta.questionId,
@@ -54,7 +57,7 @@ export async function postQuizPoll(
     closeAfterHours?: number;
     replyToMessageId?: number;
   },
-  meta: { questionId?: string } = {},
+  meta: { questionId?: string; silent?: boolean } = {},
 ): Promise<number | null> {
   const requestedHours = args.closeAfterHours ?? 22;
   const clampedHours = Math.min(Math.max(requestedHours, MIN_CLOSE_HOURS), MAX_CLOSE_HOURS);
@@ -75,6 +78,9 @@ export async function postQuizPoll(
       explanation: args.explanation,
       is_anonymous: true,
       close_date: closeDate,
+      // Only the day's challenge poll rings; everything else in the morning
+      // batch is silent, so followers get a single daily notification.
+      disable_notification: meta.silent ?? false,
       ...(args.replyToMessageId
         ? {
             reply_parameters: {

@@ -1,7 +1,7 @@
 import { describe, expect, it } from 'vitest';
 import cron from 'node-cron';
 import { schedules } from '../src/schedules';
-import { runners } from '../src/scheduler';
+import { runners, dailyBatch } from '../src/scheduler';
 
 describe('schedules registry', () => {
   it('has at least one daily fire', () => {
@@ -37,5 +37,19 @@ describe('schedules registry', () => {
       expect(hour, `${s.name}: ${s.cron}`).toBeGreaterThanOrEqual(5);
       expect(hour, `${s.name}: ${s.cron}`).toBeLessThanOrEqual(11);
     }
+  });
+});
+
+describe('daily batch notifications', () => {
+  it('posts the warm-up first, then the challenge', () => {
+    expect(dailyBatch.map((b) => b.difficulty)).toEqual(['warmup', 'challenge']);
+  });
+
+  it('rings exactly once a day: only the last item is audible', () => {
+    const audible = dailyBatch.filter((b) => !b.silent);
+    expect(audible).toHaveLength(1);
+    // The single audible poll must be the last item, so the notification
+    // lands on the final message in the morning feed.
+    expect(audible[0]).toBe(dailyBatch[dailyBatch.length - 1]);
   });
 });

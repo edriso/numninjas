@@ -22,13 +22,20 @@ function poolFor(difficulty: Difficulty): readonly Question[] {
  * If the context message fails, the poll is skipped, because a lone
  * poll with no scenario above it is useless to the reader.
  */
-export async function runQuestion(difficulty: Difficulty, bot: Bot): Promise<void> {
+export async function runQuestion(
+  difficulty: Difficulty,
+  bot: Bot,
+  opts: { silent?: boolean } = {},
+): Promise<void> {
   const pool = poolFor(difficulty);
   const question = pickQuestion(pool, new Date(), config.timezone);
 
   const contextHtml = formatContextMessage(question);
+  // The context message is always silent: it is setup text, and pinging on it
+  // would double-buzz the reader. The poll carries the (optional) notification.
   const contextId = await postContextMessage(bot, contextHtml, {
     questionId: question.id,
+    silent: true,
   });
 
   if (!contextId) {
@@ -45,19 +52,32 @@ export async function runQuestion(difficulty: Difficulty, bot: Bot): Promise<voi
       explanation: question.explanation,
       replyToMessageId: contextId,
     },
-    { questionId: question.id },
+    { questionId: question.id, silent: opts.silent ?? false },
   );
 }
 
 /**
- * Post the full morning batch: the warm-up first, then the challenge.
- * They run in sequence (not in parallel) so the channel feed always
- * reads warm-up then challenge, never interleaved. A failure on the
- * warm-up is logged inside runQuestion and does not stop the challenge.
+ * The morning batch, in feed order. Only the last item's poll rings; the
+ * warm-up (and every context message) is silent, so a follower gets a single
+ * daily notification but still receives both questions. To go fully quiet,
+ * set the challenge to `silent: true`; to ping on the warm-up instead, move
+ * the `silent: false`. This is the one edit point for the daily ping pattern.
+ */
+export const dailyBatch: readonly { difficulty: Difficulty; silent: boolean }[] = [
+  { difficulty: 'warmup', silent: true },
+  { difficulty: 'challenge', silent: false },
+];
+
+/**
+ * Post the full morning batch in order. They run in sequence (not in
+ * parallel) so the channel feed always reads warm-up then challenge, never
+ * interleaved, and the one audible poll lands last. A failure on one is
+ * logged inside runQuestion and does not stop the next.
  */
 export async function runDailyQuestions(bot: Bot): Promise<void> {
-  await runQuestion('warmup', bot);
-  await runQuestion('challenge', bot);
+  for (const item of dailyBatch) {
+    await runQuestion(item.difficulty, bot, { silent: item.silent });
+  }
 }
 
 /**

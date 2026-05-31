@@ -62,6 +62,7 @@ numninjas/
 - **Morning only.** Kids do best with short, frequent practice, and an early-morning post rewards waking up early while never competing with bedtime. A unit test pins every fire to the 05:00 to 11:00 window so no one accidentally schedules a late-night post (it also keeps the hour clear of the 00:00 to 01:00 spring-forward gap node-cron silently skips).
 - **Real answers in the poll, not letters.** Math answers are short (like "23 pounds"), so they fit Telegram's 100-char poll-option limit and go straight into the quiz poll. A kid taps the actual answer. This is the one deliberate difference from text-heavy quiz bots that have to hide long answers (such as SQL queries) in the message and show A/B/C/D in the poll. We have no such constraint, so the simpler, friendlier design wins.
 - **Two posts per question.** The first is an HTML context message with the real-life scenario, the question, and the hint in a `<tg-spoiler>` tag. The second is a quiz poll replying to the first, carrying the four real answers. The reader sees both posts grouped in the feed.
+- **One quiet ping a day.** The morning batch posts four messages (two questions, each a context message plus a poll), but only the day's challenge poll rings. Every context message is silent (it is setup text), and the warm-up poll is silent too, so a follower's phone buzzes once, not four times. The pattern lives in one place, `dailyBatch` in `scheduler.ts` (a `silent` flag per question, with context always silent), and a unit test pins it to exactly one audible post, landing last. To go fully silent, set the challenge to `silent: true`.
 - **The context message does not list the options.** They live only in the poll. This keeps the message short for a young reader and avoids spoiling the quiz. A unit test guards that the explanation (the "why") never leaks into the message for any question.
 - **Quiz polls reveal the answer.** Quiz polls show the correct option and the explanation when the reader votes. That is the learn-by-doing loop we want.
 - **Anonymous polls.** No one can see who voted. There is nothing to track and no privacy footprint, which matters when the audience is children.
@@ -107,6 +108,7 @@ The bot only needs **"Post messages"**. It never edits or deletes channel messag
 - `channelUrlFrom`: handles `@username`, full t.me URLs, numeric ids, and rejects short handles.
 - `resolvePort`: defaults to 8080 and rejects garbage.
 - The schedules registry: at least one fire, every cron valid, names unique, and every fire lands in the morning (05:00 to 11:00), never at night.
+- The daily batch notifications: the warm-up posts before the challenge, and exactly one item is audible (the last one), so the morning is a single ping.
 
 No test needs a real bot token; `vitest.config.ts` injects placeholders.
 
