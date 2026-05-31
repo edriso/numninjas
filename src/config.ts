@@ -56,23 +56,15 @@ export const config = Object.freeze({
   channelUrl: channelUrlFrom(channelPublicUrl || channelChatId),
   // Optional. If unset, /admin_* commands authorise nobody.
   adminTelegramId: optionalBigInt(process.env.ADMIN_TELEGRAM_ID),
-  // Timezone for every cron schedule. Defaults to UTC.
+  // Timezone for the daily cron schedule. Defaults to UTC.
   timezone: process.env.TZ_NAME?.trim() || 'UTC',
-  // Cron expressions for the two daily question fires. Defaults are
-  // 15:00 (warm-up, after school) and 19:30 (evening challenge) in the
-  // configured timezone. Both sit well clear of the 00:00..01:00
-  // spring-forward gap that node-cron silently skips.
-  warmupCron: process.env.WARMUP_CRON?.trim() || '0 15 * * *',
-  challengeCron: process.env.CHALLENGE_CRON?.trim() || '30 19 * * *',
-  // Daily "did you practice some math today" check-in poll. Default
-  // 17:30, between the two questions. A 22h auto-close lands ~15:30 the
-  // next day, before the next 17:30 fire, so polls never pile up.
-  checkinPollCron: process.env.CHECKIN_POLL_CRON?.trim() || '30 17 * * *',
-  // Tiny JSON pointer file that remembers the last check-in poll
-  // message id so the replace-on-next-fire delete survives a process
-  // restart. Same conceptual weight as `.env`. Losing it just leaks one
-  // stale poll until the next fire writes a new pointer. See lib/state.ts.
-  stateFilePath: process.env.STATE_FILE?.trim() || './data/last-message-ids.json',
+  // Cron expression for the single daily fire. Default 07:00 in the
+  // configured timezone: a "morning ninja warm-up" that rewards waking
+  // early and posts nothing at night, so it never keeps a kid up late.
+  // Both questions (warm-up then challenge) post together at this time.
+  // 07:00 sits well clear of the 00:00..01:00 spring-forward gap that
+  // node-cron silently skips.
+  dailyCron: process.env.DAILY_CRON?.trim() || '0 7 * * *',
   port: resolvePort(process.env.PORT),
   isDev: process.env.NODE_ENV !== 'production',
 });

@@ -14,7 +14,7 @@
  */
 import { Bot } from 'grammy';
 import { config } from '../src/config';
-import { runOnce } from '../src/scheduler';
+import { runQuestion } from '../src/scheduler';
 import { logger } from '../src/lib/logger';
 
 async function main(): Promise<void> {
@@ -29,7 +29,7 @@ async function main(): Promise<void> {
 
   const bot = new Bot(config.botToken);
   // Preflight: catches a bad token or chat id with one clean diagnostic
-  // instead of two confusing failures inside runOnce.
+  // instead of two confusing failures inside runQuestion.
   try {
     const chat = await bot.api.getChat(config.channelChatId);
     logger.info('Channel preflight OK', { title: 'title' in chat ? chat.title : '(private)' });
@@ -41,10 +41,10 @@ async function main(): Promise<void> {
   }
 
   if (arg === 'warmup' || arg === 'both') {
-    await runOnce('warmup', bot);
+    await runQuestion('warmup', bot);
   }
   if (arg === 'challenge' || arg === 'both') {
-    await runOnce('challenge', bot);
+    await runQuestion('challenge', bot);
   }
 }
 

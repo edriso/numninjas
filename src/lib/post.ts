@@ -122,6 +122,10 @@ export async function postPlainMessage(
   }
 }
 
+/**
+ * Edit a channel message in place (HTML parse_mode). Used by the welcome
+ * script so the pinned welcome can be updated without re-pinning.
+ */
 export async function editChannelMessage(
   bot: Bot<Context>,
   messageId: number,
@@ -136,92 +140,6 @@ export async function editChannelMessage(
     return true;
   } catch (err) {
     logger.warn('Failed to edit channel message', { messageId, error: String(err) });
-    return false;
-  }
-}
-
-/**
- * Post a regular (non-quiz) anonymous poll. Used by the daily check-in
- * poll. Unlike `postQuizPoll`, this is a plain yes/no with no correct
- * answer and no explanation. Anonymous on purpose: nobody, including
- * this bot, learns who voted what.
- */
-export async function postRegularPoll(
-  bot: Bot<Context>,
-  args: {
-    question: string;
-    options: readonly string[];
-    closeAfterHours?: number;
-    allowsMultipleAnswers?: boolean;
-  },
-  meta: { pollId?: string } = {},
-): Promise<number | null> {
-  const requestedHours = args.closeAfterHours ?? 22;
-  const clampedHours = Math.min(Math.max(requestedHours, MIN_CLOSE_HOURS), MAX_CLOSE_HOURS);
-  const closeDate = Math.floor(Date.now() / 1000) + Math.round(clampedHours * 3600);
-
-  const options = args.options.map((text) => ({ text }));
-
-  try {
-    const message = await bot.api.sendPoll(config.channelChatId, args.question, options, {
-      type: 'regular',
-      is_anonymous: true,
-      allows_multiple_answers: args.allowsMultipleAnswers ?? false,
-      close_date: closeDate,
-    });
-    logger.info('Posted regular poll', {
-      pollId: meta.pollId,
-      messageId: message.message_id,
-      closeInHours: clampedHours,
-    });
-    return message.message_id;
-  } catch (err) {
-    logger.error('Failed to post regular poll', {
-      pollId: meta.pollId,
-      error: String(err),
-    });
-    return null;
-  }
-}
-
-/**
- * Delete one previously-posted channel message. Used by the check-in
- * poll replace-on-next-fire flow.
- *
- * Notes / why no throws
- * ─────────────────────
- * Failures here are non-fatal by design. The common case is "the admin
- * already deleted that message by hand". A leaked stale poll is purely
- * cosmetic and self-bounded (the next fire will replace it again).
- *
- * Channel admin rights required
- * ─────────────────────────────
- * In a channel the bot needs the `can_delete_messages` admin right, IN
- * ADDITION to "Post messages". Without it the API returns 400 and we
- * just log it. The 48-hour deleteMessage cap that normally applies to
- * non-admin senders does NOT apply when the bot is a channel admin with
- * this permission. Polls live up to 30 days, so this matters.
- */
-export async function deleteChannelMessage(
-  bot: Bot<Context>,
-  messageId: number,
-  meta: { pollId?: string } = {},
-): Promise<boolean> {
-  try {
-    await bot.api.deleteMessage(config.channelChatId, messageId);
-    logger.info('Deleted previous channel message', {
-      pollId: meta.pollId,
-      messageId,
-    });
-    return true;
-  } catch (err) {
-    // warn (not error): a missing previous message is the routine case
-    // when an admin tidied the channel by hand.
-    logger.warn('Failed to delete previous channel message', {
-      pollId: meta.pollId,
-      messageId,
-      error: String(err),
-    });
     return false;
   }
 }

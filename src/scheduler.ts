@@ -2,22 +2,13 @@ import cron from 'node-cron';
 import type { Bot } from 'grammy';
 import { config } from './config';
 import { logger } from './lib/logger';
-import { schedules, type ScheduleDef } from './schedules';
+import { schedules } from './schedules';
 import { formatContextMessage, pollOptions, pollQuestion } from './lib/format';
-import {
-  deleteChannelMessage,
-  postContextMessage,
-  postQuizPoll,
-  postRegularPoll,
-} from './lib/post';
+import { postContextMessage, postQuizPoll } from './lib/post';
 import { pickQuestion } from './lib/pick';
 import { warmupQuestions } from './content/questions-warmup';
 import { challengeQuestions } from './content/questions-challenge';
-import { CHECKIN_POLL } from './content/checkin-poll';
-import { getMessageId, setMessageId } from './lib/state';
 import type { Difficulty, Question } from './types';
-
-const CHECKIN_POLL_SCHEDULE_NAME = 'daily_checkin_poll';
 
 function poolFor(difficulty: Difficulty): readonly Question[] {
   return difficulty === 'warmup' ? warmupQuestions : challengeQuestions;
@@ -59,58 +50,14 @@ export async function runQuestion(difficulty: Difficulty, bot: Bot): Promise<voi
 }
 
 /**
- * Fire the daily check-in poll.
- *
- * Order is post-then-delete so the channel is never empty mid-cycle.
- * If the post fails we keep the previous pointer untouched, so the next
- * fire still has something to clean up. If the delete fails we still
- * update the pointer to the new id; the stale poll just ages out by the
- * next fire (Telegram auto-closes after 22h regardless).
+ * Post the full morning batch: the warm-up first, then the challenge.
+ * They run in sequence (not in parallel) so the channel feed always
+ * reads warm-up then challenge, never interleaved. A failure on the
+ * warm-up is logged inside runQuestion and does not stop the challenge.
  */
-export async function runCheckinPoll(bot: Bot): Promise<void> {
-  const previousId = getMessageId(CHECKIN_POLL_SCHEDULE_NAME);
-
-  const newId = await postRegularPoll(
-    bot,
-    {
-      question: CHECKIN_POLL.question,
-      options: CHECKIN_POLL.options,
-      closeAfterHours: CHECKIN_POLL.closeAfterHours,
-      allowsMultipleAnswers: false,
-    },
-    { pollId: CHECKIN_POLL_SCHEDULE_NAME },
-  );
-
-  if (newId === null) {
-    logger.warn('Check-in poll post failed; keeping previous pointer', { previousId });
-    return;
-  }
-
-  await setMessageId(CHECKIN_POLL_SCHEDULE_NAME, newId);
-
-  if (previousId !== undefined) {
-    await deleteChannelMessage(bot, previousId, { pollId: CHECKIN_POLL_SCHEDULE_NAME });
-  }
-}
-
-/** Dispatch a schedule by its discriminated kind. */
-export async function runSchedule(s: ScheduleDef, bot: Bot): Promise<void> {
-  switch (s.kind) {
-    case 'question':
-      await runQuestion(s.difficulty, bot);
-      return;
-    case 'checkin_poll':
-      await runCheckinPoll(bot);
-      return;
-  }
-}
-
-/**
- * Convenience used by the admin commands and the send-test script to
- * fire a single question on demand.
- */
-export async function runOnce(difficulty: Difficulty, bot: Bot): Promise<void> {
-  await runQuestion(difficulty, bot);
+export async function runDailyQuestions(bot: Bot): Promise<void> {
+  await runQuestion('warmup', bot);
+  await runQuestion('challenge', bot);
 }
 
 /**
@@ -134,7 +81,7 @@ export function startScheduler(bot: Bot): number {
       async () => {
         logger.info('Schedule fired', { name: s.name, cron: s.cron });
         try {
-          await runSchedule(s, bot);
+          await runDailyQuestions(bot);
         } catch (err) {
           logger.error('Schedule failed', { name: s.name, error: String(err) });
         }
@@ -144,7 +91,6 @@ export function startScheduler(bot: Bot): number {
     registered += 1;
     logger.info('Schedule registered', {
       name: s.name,
-      kind: s.kind,
       cron: s.cron,
       timezone: config.timezone,
     });

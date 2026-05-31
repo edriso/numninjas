@@ -58,15 +58,17 @@ The bot uses `dayOfYearInTimezone(today, TZ) % pool.length` to pick. That means:
 
 ## How many questions per day, and why two
 
-This bot posts **two** questions a day (a warm-up and a challenge) plus the check-in poll. Here is the reasoning, so you can change it with eyes open.
+This bot posts **two** questions, together, every **morning** (default 07:00). The warm-up goes out first, then the challenge. Here is the reasoning, so you can change it with eyes open.
 
-Research on children aged 10 to 12 points the same way: short, frequent practice beats one long block. A focused 15 to 20 minute daily habit fits a child's attention span (roughly 20 to 30 minutes at this age) and builds retention far better than cramming. Two 30-second puzzles, spaced apart, sit comfortably inside that window:
+- **Morning only, nothing at night.** Kids this age need good sleep and an early start more than they need an extra evening puzzle. Posting first thing rewards waking up early and keeps the channel away from bedtime entirely. A unit test even pins every fire to the 05:00 to 11:00 window so no one accidentally schedules a late-night post.
+- **Two, not one.** Research on children aged 10 to 12 points one way: short, frequent practice beats one long block, and it fits their attention span (roughly 20 to 30 minutes at this age). Two 30-second puzzles, an easy warm-up to build confidence and a harder challenge to stretch, are a quick morning brain warm-up, not a study session.
+- **Together, not spread out.** Both fire from a single cron so the whole "morning math" moment is one habit: open the channel once, do two puzzles, get on with your day.
 
-- The **afternoon warm-up** is gentle on purpose. It builds confidence and gets the brain going after school.
-- The **evening challenge** stretches a little further, once the warm-up has warmed them up.
-- The **midday check-in poll** is the habit nudge between the two.
+How to change it:
 
-If your audience tells you two is too much, dropping to one a day is a one-line change in `src/schedules.ts`: remove either the `daily_warmup` or the `daily_challenge` entry. Everything else (the picker, the format, the tests) keeps working. You could also keep both pools and post only one per day by alternating, but the simplest "one a day" is to ship a single question schedule.
+- **Move the time:** set `DAILY_CRON` (or edit the default in `src/config.ts`). Keep it in the morning so the schedules test still passes.
+- **Post only one a day:** in `src/scheduler.ts#runDailyQuestions`, drop one of the two `runQuestion(...)` calls. Everything else (the picker, the format, the tests) keeps working.
+- **Split them across the day:** add a second entry to `schedules` in `src/schedules.ts` and give the scheduler a second runner. (You will also need to relax the morning-window test if you intentionally post later.)
 
 ## How many questions is enough content
 

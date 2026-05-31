@@ -1,13 +1,13 @@
 import { Bot } from 'grammy';
 import { config } from './config';
 import { logger } from './lib/logger';
-import { runCheckinPoll, runOnce } from './scheduler';
+import { runDailyQuestions, runQuestion } from './scheduler';
 
 /**
  * Build and configure the Grammy bot. The bot exists mainly to drive
  * the scheduled channel posts. The DM surface is intentionally minimal:
- * a /start that points new arrivals to the channel, and optional admin
- * commands that fire a schedule on demand for debugging.
+ * a /start and /about that point new arrivals to the channel, and
+ * optional admin commands that fire the questions on demand for testing.
  */
 export function buildBot(): Bot {
   const bot = new Bot(config.botToken);
@@ -17,9 +17,9 @@ export function buildBot(): Bot {
     const tail = link ? `\n\nJoin the channel: ${link}` : '';
     await ctx.reply(
       [
-        '👋 Hi ninja! NumNinjas posts two short math puzzles a day to its Telegram channel.',
+        '👋 Hi ninja! NumNinjas posts two short math puzzles every morning to its Telegram channel.',
         '',
-        'A warm-up in the afternoon and a tougher challenge in the evening. Each one is a quick real-life story with a hint and a quiz, so you can check yourself in seconds.',
+        'A gentle warm-up and then a tougher challenge, first thing in the day. Each one is a quick real-life story with a hint and a quiz, so you can check yourself in seconds.',
         tail,
       ].join('\n'),
       { link_preview_options: { is_disabled: true } },
@@ -35,28 +35,30 @@ export function buildBot(): Bot {
     );
   });
 
-  // Admin-only manual fire. Useful when you want to preview the next
-  // question without waiting for the cron. Anyone other than the
+  // Admin-only manual fire. Useful when you want to preview a question
+  // without waiting for the morning cron. Anyone other than the
   // configured admin is silently ignored, so the bot never leaks the
-  // existence of the command to strangers in DMs.
+  // existence of these commands to strangers in DMs.
   bot.command('admin_warmup', async (ctx) => {
     if (!isAdmin(ctx.from?.id)) return;
     await ctx.reply('Firing warm-up...');
-    await runOnce('warmup', bot);
+    await runQuestion('warmup', bot);
     await ctx.reply('Done.');
   });
 
   bot.command('admin_challenge', async (ctx) => {
     if (!isAdmin(ctx.from?.id)) return;
     await ctx.reply('Firing challenge...');
-    await runOnce('challenge', bot);
+    await runQuestion('challenge', bot);
     await ctx.reply('Done.');
   });
 
-  bot.command('admin_checkin', async (ctx) => {
+  // Fire the full morning batch (warm-up then challenge), exactly as the
+  // daily cron would.
+  bot.command('admin_daily', async (ctx) => {
     if (!isAdmin(ctx.from?.id)) return;
-    await ctx.reply('Firing check-in poll...');
-    await runCheckinPoll(bot);
+    await ctx.reply('Firing the daily batch...');
+    await runDailyQuestions(bot);
     await ctx.reply('Done.');
   });
 

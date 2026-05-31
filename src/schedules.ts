@@ -1,41 +1,23 @@
 import { config } from './config';
-import type { Difficulty } from './types';
 
 /**
- * Schedules are a discriminated union on `kind`. Adding a new kind is a
- * one-line change in scheduler.ts (see the switch in `runSchedule`).
- *
- *  - kind 'question'     : pick a question from the warm-up or challenge
- *                          pool and post the context message plus a quiz
- *                          poll.
- *  - kind 'checkin_poll' : post the daily anonymous "did you practice
- *                          some math today" yes/no poll. The fire deletes
- *                          the previous poll so only one is live at a
- *                          time.
+ * A schedule is just a named cron expression. The bot has one daily
+ * fire, so the list has a single entry, but keeping it a list means
+ * adding another fire later (a weekend brain teaser, say) is a one-line
+ * change here plus its runner in scheduler.ts.
  */
-export type ScheduleDef =
-  | { kind: 'question'; name: string; cron: string; difficulty: Difficulty }
-  | { kind: 'checkin_poll'; name: string; cron: string };
+export type ScheduleDef = { name: string; cron: string };
 
 /**
- * The three daily fires. Defaults are 15:00 (warm-up, after school),
- * 17:30 (check-in poll), and 19:30 (evening challenge) in the configured
- * timezone. Override any cron via env: WARMUP_CRON, CHECKIN_POLL_CRON,
- * CHALLENGE_CRON.
+ * The one daily fire. Default 07:00 in the configured timezone. At this
+ * time the bot posts the warm-up question first and then the challenge,
+ * back to back (see scheduler.ts#runDailyQuestions). Override the time
+ * via the DAILY_CRON env var.
  *
- * Why this spread: research on kids aged 10 to 12 favours "little and
- * often" over one long block. Two quick 30-second questions, one gentle
- * in the afternoon and one tougher in the evening, with a friendly
- * check-in nudge between them, fits a 15 to 20 minute daily habit
- * without overwhelming a young reader. See docs/QUESTIONS.md.
+ * Why morning only: kids do best with short, frequent practice, and a
+ * single early session rewards waking up early while posting nothing at
+ * night, so the channel never competes with bedtime. See docs/QUESTIONS.md.
  */
 export const schedules: readonly ScheduleDef[] = [
-  { kind: 'question', name: 'daily_warmup', cron: config.warmupCron, difficulty: 'warmup' },
-  { kind: 'checkin_poll', name: 'daily_checkin_poll', cron: config.checkinPollCron },
-  {
-    kind: 'question',
-    name: 'daily_challenge',
-    cron: config.challengeCron,
-    difficulty: 'challenge',
-  },
+  { name: 'daily_questions', cron: config.dailyCron },
 ];
