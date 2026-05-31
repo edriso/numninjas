@@ -185,7 +185,7 @@ export const warmupQuestions: readonly Question[] = [
     id: 'warmup-compare-decimals',
     difficulty: 'warmup',
     topic: 'Decimals',
-    scenario: 'Two runners record their times, and you compare two distances in metres.',
+    scenario: 'At sports day you compare two long-jump distances measured in metres.',
     prompt: 'Which number is larger, 0.7 or 0.65?',
     hint: 'Think of 0.7 as 0.70, then compare like normal numbers.',
     options: ['0.7', '0.65', 'They are equal', 'You cannot compare them'],

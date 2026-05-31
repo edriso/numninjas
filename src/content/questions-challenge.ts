@@ -45,8 +45,8 @@ export const challengeQuestions: readonly Question[] = [
     scenario: 'A shirt costs 200 pounds and the shop takes 25% off in a sale.',
     prompt: 'How much do you pay after the discount?',
     hint: 'First find 25% of 200 (that is one quarter), then take it off the price.',
-    options: ['160 pounds', '150 pounds', '50 pounds', '140 pounds'],
-    correctIndex: 1,
+    options: ['150 pounds', '160 pounds', '50 pounds', '140 pounds'],
+    correctIndex: 0,
     explanation: '25% of 200 is 50. So you pay 200 - 50 = 150 pounds.',
   },
   {
@@ -243,8 +243,8 @@ export const challengeQuestions: readonly Question[] = [
     scenario: 'A stadium has 5 stands, and each stand seats 1,200 people.',
     prompt: 'How many people can the stadium hold in total?',
     hint: 'Multiply the number of stands by the seats in one stand.',
-    options: ['5,000', '6,000', '600', '6,500'],
-    correctIndex: 1,
+    options: ['5,000', '600', '6,500', '6,000'],
+    correctIndex: 3,
     explanation: '5 x 1,200 = 6,000 people.',
   },
   {
@@ -310,8 +310,8 @@ export const challengeQuestions: readonly Question[] = [
     scenario: 'A book costs 80 pounds and the shop gives 10% off.',
     prompt: 'What is the new price?',
     hint: '10% of 80 is 8. Take that off the original price.',
-    options: ['70 pounds', '72 pounds', '8 pounds', '75 pounds'],
-    correctIndex: 1,
+    options: ['70 pounds', '8 pounds', '72 pounds', '75 pounds'],
+    correctIndex: 2,
     explanation: '10% of 80 is 8, so the new price is 80 - 8 = 72 pounds.',
   },
   {
