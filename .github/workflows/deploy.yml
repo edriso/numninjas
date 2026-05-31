@@ -1,0 +1,41 @@
+# Push-to-deploy: on every push to main, SSH into the VPS, pull the latest
+# code, and rebuild just this bot's container.
+#
+# This is a NO-DATABASE bot, so there is no migrate step (unlike the ayah
+# bot, whose workflow runs `<bot>-migrate` first).
+#
+# Required GitHub secrets (repo -> Settings -> Secrets and variables ->
+# Actions -> New repository secret):
+#   SERVER_IP  the VPS IP address
+#   SSH_KEY    a private SSH key whose public half is in the server's
+#              /root/.ssh/authorized_keys
+#
+# These are the SAME two values every bot repo uses (the shared deploy key).
+# A PRIVATE repo needs NO extra GitHub secret. The only private-repo
+# requirement is server-side: the server must hold its own GitHub SSH key so
+# `git pull` works (hetzner-cloud-server guide, 06, Part D). That is a
+# one-time server setup, already in place if another private bot deploys from
+# the same server.
+#
+# Until SERVER_IP and SSH_KEY are set, this workflow fails at the connect
+# step. That is expected; add the secrets to activate it.
+name: deploy
+
+on:
+  push:
+    branches: [main]
+
+jobs:
+  deploy:
+    runs-on: ubuntu-latest
+    steps:
+      - name: Deploy over SSH
+        uses: appleboy/ssh-action@v1
+        with:
+          host: ${{ secrets.SERVER_IP }}
+          username: root
+          key: ${{ secrets.SSH_KEY }}
+          script: |
+            cd /opt/bots/telegram/numninjas && git pull
+            cd /opt/bots && docker compose up -d --build numninjas
+            docker image prune -f

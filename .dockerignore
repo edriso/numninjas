@@ -1,0 +1,41 @@
+# Files the Docker daemon should NOT receive when building the image.
+# Smaller context means faster builds and no secrets baked into layers.
+
+node_modules
+dist
+.git
+.gitignore
+
+# Secrets. Env is injected on the host via the bot's .env (env_file), not
+# copied into the image.
+.env
+.env.*
+!.env.example
+
+# Build output / artifacts
+coverage
+*.log
+*.tsbuildinfo
+
+# Editor / OS junk
+.vscode
+.idea
+.DS_Store
+.claude
+
+# Tests: compiled by tsc but never executed at runtime.
+src/**/*.test.ts
+tests
+
+# Dev-only scripts (send-test, post-welcome, audit-questions). Not imported
+# by the app, so the image does not need them.
+scripts
+
+# Docs and config the build does not need
+README.md
+CLAUDE.md
+LICENSE
+docs
+.prettierrc
+.prettierrc.json
+vitest.config.ts
