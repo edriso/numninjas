@@ -210,7 +210,7 @@ export const warmupQuestions: readonly Question[] = [
     scenario: 'You spend 40 minutes on homework and then 35 minutes reading.',
     prompt: 'How much time is that altogether?',
     hint: 'Add the minutes, then swap 60 minutes for 1 hour.',
-    options: ['1 h 5 min', '1 h 25 min', '1 h 15 min', '75 min exactly an hour'],
+    options: ['1 h 5 min', '1 h 25 min', '1 h 15 min', '1 h 30 min'],
     correctIndex: 2,
     explanation: '40 + 35 = 75 minutes, which is 1 hour and 15 minutes.',
   },
@@ -312,7 +312,7 @@ export const warmupQuestions: readonly Question[] = [
     options: ['1,209', '1,290', '1,029', '1,092'],
     correctIndex: 1,
     explanation:
-      'All start with 1 thousand. 1,290 has the most hundreds (2) and the biggest tens, so it wins.',
+      'All have 1 thousand. 1,209 and 1,290 both have 2 hundreds, but 1,290 has 9 tens versus 0, so it is greatest.',
   },
   {
     id: 'warmup-divide-share-money',

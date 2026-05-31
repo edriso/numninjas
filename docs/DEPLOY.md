@@ -65,7 +65,7 @@ fly deploy
 fly logs
 ```
 
-Compile first and run `node dist/src/index.js`, or run `node --import tsx src/index.ts`. The `/health` endpoint on port 8080 keeps the machine alive.
+Run `pnpm start` (which runs `node --import tsx src/index.ts`). The `/health` endpoint on port 8080 keeps the machine alive.
 
 ### Railway
 
@@ -77,31 +77,26 @@ Compile first and run `node dist/src/index.js`, or run `node --import tsx src/in
 ### Plain VPS
 
 ```bash
-pnpm install --prod
-pnpm build
+pnpm install
 pnpm start
 ```
 
-Wrap it in a systemd unit or pm2 so it restarts on crash. Set the env vars in the unit file or in a `.env` next to the binary.
+Wrap it in a systemd unit or pm2 so it restarts on crash. Set the env vars in the unit file or in a `.env` next to the binary. The bot runs the TypeScript source directly through `tsx`, so there is no separate build step to remember.
 
 ### Docker
 
 A minimal Dockerfile:
 
 ```Dockerfile
-FROM node:20-alpine AS build
-WORKDIR /app
-COPY package.json pnpm-lock.yaml* ./
-RUN corepack enable && pnpm install --frozen-lockfile || pnpm install
-COPY . .
-RUN pnpm build
-
 FROM node:20-alpine
 WORKDIR /app
-COPY --from=build /app /app
+RUN corepack enable
+COPY package.json pnpm-lock.yaml* ./
+RUN pnpm install --frozen-lockfile || pnpm install
+COPY . .
 ENV NODE_ENV=production
 EXPOSE 8080
-CMD ["node", "--import", "tsx", "dist/src/index.js"]
+CMD ["pnpm", "start"]
 ```
 
 The image is a few hundred MB. There is nothing to mount; logs go to stdout.

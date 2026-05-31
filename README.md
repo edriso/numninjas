@@ -105,8 +105,8 @@ To make the check-in poll delete the previous one, the bot must be a channel adm
 | Command                   | What it does                                                           |
 | ------------------------- | ---------------------------------------------------------------------- |
 | `pnpm dev`                | Start the bot locally with hot reload                                  |
-| `pnpm start`              | Run the compiled bot (after `pnpm build`)                              |
-| `pnpm build`              | Compile TypeScript to `dist/`                                          |
+| `pnpm start`              | Run the bot in production (runs the source through tsx)                |
+| `pnpm build`              | Type-check and compile TypeScript to `dist/` (optional, for CI)        |
 | `pnpm test`               | Run unit tests (no network)                                            |
 | `pnpm typecheck`          | TypeScript with no emit                                                |
 | `pnpm audit-questions`    | Validate the question pools (option length, id uniqueness, etc.)       |

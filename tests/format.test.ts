@@ -42,6 +42,17 @@ describe('formatContextMessage', () => {
     expect(out).not.toContain(q.options[q.correctIndex]!);
   });
 
+  it('never leaks the explanation (the "why") before the reader votes', () => {
+    // The explanation is revealed by Telegram only after voting. It must
+    // never appear in the context message for any question in either pool.
+    // (We check the explanation rather than the raw option text because a
+    // few questions, like "which is larger, 2/3 or 3/5?", legitimately
+    // restate a value in the prompt itself.)
+    for (const item of [...warmupQuestions, ...challengeQuestions]) {
+      expect(formatContextMessage(item), item.id).not.toContain(item.explanation);
+    }
+  });
+
   it('shows the right difficulty badge', () => {
     expect(formatContextMessage(warmupQuestions[0]!)).toContain('Warm-up');
     expect(formatContextMessage(challengeQuestions[0]!)).toContain('Challenge');
