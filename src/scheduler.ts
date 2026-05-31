@@ -61,10 +61,22 @@ export async function runDailyQuestions(bot: Bot): Promise<void> {
 }
 
 /**
- * Register every schedule with node-cron. Bad cron expressions are
- * validated up front: an invalid one is logged and skipped so the rest
- * of the bot still runs. Returns the number registered so /health can
- * report it.
+ * Maps each schedule (by name) to the action it fires. This is the bind
+ * between the data in schedules.ts and the code here. To add a new fire:
+ * add an entry in schedules.ts AND a runner here keyed by the same name.
+ * A schedule with no runner is skipped loudly at startup, so a half-done
+ * addition fails fast instead of silently double-posting the daily batch.
+ * Exported so a unit test can assert every schedule has a runner.
+ */
+export const runners: Record<string, (bot: Bot) => Promise<void>> = {
+  daily_questions: runDailyQuestions,
+};
+
+/**
+ * Register every schedule with node-cron. Two things are validated up
+ * front and skipped (with a logged error) so one bad schedule never
+ * stops the rest: an invalid cron expression, and a schedule with no
+ * matching runner. Returns the number registered so /health can report it.
  */
 export function startScheduler(bot: Bot): number {
   let registered = 0;
@@ -76,12 +88,17 @@ export function startScheduler(bot: Bot): number {
       });
       continue;
     }
+    const run = runners[s.name];
+    if (!run) {
+      logger.error('No runner for schedule, skipping', { name: s.name });
+      continue;
+    }
     cron.schedule(
       s.cron,
       async () => {
         logger.info('Schedule fired', { name: s.name, cron: s.cron });
         try {
-          await runDailyQuestions(bot);
+          await run(bot);
         } catch (err) {
           logger.error('Schedule failed', { name: s.name, error: String(err) });
         }

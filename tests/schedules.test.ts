@@ -1,10 +1,19 @@
 import { describe, expect, it } from 'vitest';
 import cron from 'node-cron';
 import { schedules } from '../src/schedules';
+import { runners } from '../src/scheduler';
 
 describe('schedules registry', () => {
   it('has at least one daily fire', () => {
     expect(schedules.length).toBeGreaterThan(0);
+  });
+
+  it('every schedule has a matching runner', () => {
+    // Guards the footgun: a schedule entry with no runner would be
+    // skipped at startup. This fails the build the moment that happens.
+    for (const s of schedules) {
+      expect(typeof runners[s.name], `no runner for "${s.name}"`).toBe('function');
+    }
   });
 
   it('every cron expression is valid', () => {

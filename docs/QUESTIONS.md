@@ -68,7 +68,7 @@ How to change it:
 
 - **Move the time:** set `DAILY_CRON` (or edit the default in `src/config.ts`). Keep it in the morning so the schedules test still passes.
 - **Post only one a day:** in `src/scheduler.ts#runDailyQuestions`, drop one of the two `runQuestion(...)` calls. Everything else (the picker, the format, the tests) keeps working.
-- **Split them across the day:** add a second entry to `schedules` in `src/schedules.ts` and give the scheduler a second runner. (You will also need to relax the morning-window test if you intentionally post later.)
+- **Split them across the day:** add a second entry to `schedules` in `src/schedules.ts`, then add a runner for it in the `runners` map in `src/scheduler.ts` keyed by the same `name` (for example, one runner that fires only the warm-up and another only the challenge). A schedule with no matching runner is skipped at startup with a logged error, so it can never silently double-post. (You will also need to relax the morning-window test if you intentionally post later.)
 
 ## How many questions is enough content
 
