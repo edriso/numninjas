@@ -284,7 +284,8 @@ export const challengeQuestions: readonly Question[] = [
     id: 'challenge-average-missing',
     difficulty: 'challenge',
     topic: 'Averages',
-    scenario: 'Omar scored 7 and 8 in his first two tests. He wants his average over three tests to be 8.',
+    scenario:
+      'Omar scored 7 and 8 in his first two tests. He wants his average over three tests to be 8.',
     prompt: 'What does he need to score in the third test?',
     hint: 'Three tests with an average of 8 must add up to 3 x 8 = 24 in total.',
     options: ['8', '10', '9', '7'],

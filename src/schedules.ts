@@ -32,5 +32,10 @@ export type ScheduleDef =
 export const schedules: readonly ScheduleDef[] = [
   { kind: 'question', name: 'daily_warmup', cron: config.warmupCron, difficulty: 'warmup' },
   { kind: 'checkin_poll', name: 'daily_checkin_poll', cron: config.checkinPollCron },
-  { kind: 'question', name: 'daily_challenge', cron: config.challengeCron, difficulty: 'challenge' },
+  {
+    kind: 'question',
+    name: 'daily_challenge',
+    cron: config.challengeCron,
+    difficulty: 'challenge',
+  },
 ];

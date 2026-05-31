@@ -20,7 +20,8 @@ export const warmupQuestions: readonly Question[] = [
     difficulty: 'warmup',
     topic: 'Addition',
     scenario: 'You stop at the school shop and buy a sandwich and a juice.',
-    prompt: 'The sandwich costs 15 pounds and the juice costs 8 pounds. How much do you pay in total?',
+    prompt:
+      'The sandwich costs 15 pounds and the juice costs 8 pounds. How much do you pay in total?',
     hint: 'Add the price of the sandwich to the price of the juice.',
     options: ['23 pounds', '22 pounds', '25 pounds', '20 pounds'],
     correctIndex: 0,
@@ -310,7 +311,8 @@ export const warmupQuestions: readonly Question[] = [
     hint: 'Compare the digits from the left: thousands first, then hundreds.',
     options: ['1,209', '1,290', '1,029', '1,092'],
     correctIndex: 1,
-    explanation: 'All start with 1 thousand. 1,290 has the most hundreds (2) and the biggest tens, so it wins.',
+    explanation:
+      'All start with 1 thousand. 1,290 has the most hundreds (2) and the biggest tens, so it wins.',
   },
   {
     id: 'warmup-divide-share-money',
