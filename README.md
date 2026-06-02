@@ -30,15 +30,20 @@ If you would rather post just one a day, or split them across the day, it is a s
 
 ## Tech stack
 
-| Part     | Choice                                  |
-| -------- | --------------------------------------- |
-| Bot      | TypeScript, Grammy, node-cron, Node 20+ |
-| Storage  | none, no database, no state files       |
-| Content  | TypeScript files in `src/content/`      |
-| Packager | pnpm                                    |
-| Tests    | Vitest, no network                      |
+| Part     | Choice                                     |
+| -------- | ------------------------------------------ |
+| Bot      | TypeScript, Grammy, node-cron, Node 20+    |
+| Plumbing | [telegram-broadcast-kit](#shared-plumbing) |
+| Storage  | none, no database, no state files          |
+| Content  | TypeScript files in `src/content/`         |
+| Packager | pnpm                                       |
+| Tests    | Vitest, no network                         |
 
 There is no database and no state of any kind. All the questions live in source files. To add or change a question, you edit a file and redeploy.
+
+### Shared plumbing
+
+The generic, non-domain machinery (the logger, the `.env` loader, the timezone day math, the channel poster, the quiz poll with its close-window clamping, the node-cron registry with error containment, and the `/health` server) lives in a separate package, **telegram-broadcast-kit**, pinned by git tag (`github:edriso/telegram-broadcast-kit#v0.2.0`) and shared with the other channel-poster bots in this family. NumNinjas posts an HTML context message (`post(..., { parseMode: 'HTML' })`) and a quiz poll (`sendPoll(..., { type: 'quiz', correctOptionId, explanation })`) through that kit; only the question content, formatting, schedule, and dispatch stay here. The pin is auto-bumped by Renovate, and the deploy workflow runs `pnpm check` on every pull request so the bump is gated before merge.
 
 ## Quick start
 

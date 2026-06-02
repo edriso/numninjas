@@ -1,6 +1,6 @@
 import { Bot } from 'grammy';
+import { logger } from 'telegram-broadcast-kit';
 import { config } from './config';
-import { logger } from './lib/logger';
 import { runDailyQuestions, runQuestion } from './scheduler';
 
 /**

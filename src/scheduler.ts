@@ -1,14 +1,22 @@
-import cron from 'node-cron';
-import type { Bot } from 'grammy';
+import type { Bot, Context } from 'grammy';
+import { Scheduler, post, sendPoll, logger, type CronJob } from 'telegram-broadcast-kit';
 import { config } from './config';
-import { logger } from './lib/logger';
 import { schedules } from './schedules';
 import { formatContextMessage, pollOptions, pollQuestion } from './lib/format';
-import { postContextMessage, postQuizPoll } from './lib/post';
 import { pickQuestion } from './lib/pick';
 import { warmupQuestions } from './content/questions-warmup';
 import { challengeQuestions } from './content/questions-challenge';
 import type { Difficulty, Question } from './types';
+
+// The bot-specific schedule layer. The generic cron plumbing (error
+// containment, the node-cron registry) and the channel send/poll wrappers now
+// live in telegram-broadcast-kit; this file keeps everything numninjas-specific
+// on top of them: which pool to pick, the two-post (context + quiz) dispatch,
+// the morning batch order, and the schedule table wiring.
+
+// One Scheduler per bot, holding the live cron tasks so they can all be stopped
+// on shutdown. Built lazily on the first startScheduler call.
+let scheduler: Scheduler | null = null;
 
 function poolFor(difficulty: Difficulty): readonly Question[] {
   return difficulty === 'warmup' ? warmupQuestions : challengeQuestions;
@@ -17,14 +25,18 @@ function poolFor(difficulty: Difficulty): readonly Question[] {
 /**
  * Fire one math question. The full flow:
  *   1. pick the question for today's date in the configured timezone
- *   2. post the context message (returns its message_id)
- *   3. reply with a quiz poll so the two posts are visually grouped
- * If the context message fails, the poll is skipped, because a lone
- * poll with no scenario above it is useless to the reader.
+ *   2. post the context message (HTML parse_mode; returns its message_id)
+ *   3. post the quiz poll right below it
+ * If the context message fails, the poll is skipped, because a lone poll with
+ * no scenario above it is useless to the reader.
+ *
+ * The two posts go out back to back so they read as a pair in the channel feed.
+ * (The kit's sendPoll has no reply-to hook, so the poll is no longer a literal
+ * reply to the context message; consecutive posting still groups them.)
  */
 export async function runQuestion(
   difficulty: Difficulty,
-  bot: Bot,
+  bot: Bot<Context>,
   opts: { silent?: boolean } = {},
 ): Promise<void> {
   const pool = poolFor(difficulty);
@@ -33,9 +45,11 @@ export async function runQuestion(
   const contextHtml = formatContextMessage(question);
   // The context message is always silent: it is setup text, and pinging on it
   // would double-buzz the reader. The poll carries the (optional) notification.
-  const contextId = await postContextMessage(bot, contextHtml, {
-    questionId: question.id,
+  // parseMode 'HTML' is opt-in on the kit's post (the default is plain text).
+  const contextId = await post(bot, config.channelChatId, contextHtml, {
+    name: question.id,
     silent: true,
+    parseMode: 'HTML',
   });
 
   if (!contextId) {
@@ -43,16 +57,21 @@ export async function runQuestion(
     return;
   }
 
-  await postQuizPoll(
+  // Quiz poll: Telegram reveals the correct option and the explanation after
+  // the reader votes, which is the learn-by-doing loop we want for kids. The
+  // kit validates the quiz config synchronously (throws on a bad
+  // correctOptionId or an over-long explanation) and clamps the close window.
+  await sendPoll(
     bot,
+    config.channelChatId,
     {
       question: pollQuestion(),
       options: pollOptions(question),
+      type: 'quiz',
       correctOptionId: question.correctIndex,
       explanation: question.explanation,
-      replyToMessageId: contextId,
     },
-    { questionId: question.id, silent: opts.silent ?? false },
+    { name: question.id, silent: opts.silent ?? false },
   );
 }
 
@@ -74,7 +93,7 @@ export const dailyBatch: readonly { difficulty: Difficulty; silent: boolean }[] 
  * interleaved, and the one audible poll lands last. A failure on one is
  * logged inside runQuestion and does not stop the next.
  */
-export async function runDailyQuestions(bot: Bot): Promise<void> {
+export async function runDailyQuestions(bot: Bot<Context>): Promise<void> {
   for (const item of dailyBatch) {
     await runQuestion(item.difficulty, bot, { silent: item.silent });
   }
@@ -88,49 +107,38 @@ export async function runDailyQuestions(bot: Bot): Promise<void> {
  * addition fails fast instead of silently double-posting the daily batch.
  * Exported so a unit test can assert every schedule has a runner.
  */
-export const runners: Record<string, (bot: Bot) => Promise<void>> = {
+export const runners: Record<string, (bot: Bot<Context>) => Promise<void>> = {
   daily_questions: runDailyQuestions,
 };
 
 /**
- * Register every schedule with node-cron. Two things are validated up
- * front and skipped (with a logged error) so one bad schedule never
- * stops the rest: an invalid cron expression, and a schedule with no
- * matching runner. Returns the number registered so /health can report it.
+ * Register every schedule with the kit's Scheduler. The kit validates each
+ * cron (an invalid one is logged and skipped, so a single typo never takes the
+ * whole bot down) and wraps every fire in runJob for error containment. A
+ * schedule with no matching runner is skipped with a logged error. Returns the
+ * count registered so /health can report it.
  */
-export function startScheduler(bot: Bot): number {
-  let registered = 0;
+export function startScheduler(bot: Bot<Context>): number {
+  scheduler = new Scheduler(config.timezone);
+  const jobs: CronJob[] = [];
   for (const s of schedules) {
-    if (!cron.validate(s.cron)) {
-      logger.error('Invalid cron expression, skipping schedule', {
-        name: s.name,
-        cron: s.cron,
-      });
-      continue;
-    }
     const run = runners[s.name];
     if (!run) {
       logger.error('No runner for schedule, skipping', { name: s.name });
       continue;
     }
-    cron.schedule(
-      s.cron,
-      async () => {
-        logger.info('Schedule fired', { name: s.name, cron: s.cron });
-        try {
-          await run(bot);
-        } catch (err) {
-          logger.error('Schedule failed', { name: s.name, error: String(err) });
-        }
-      },
-      { timezone: config.timezone },
-    );
-    registered += 1;
-    logger.info('Schedule registered', {
+    jobs.push({
       name: s.name,
       cron: s.cron,
-      timezone: config.timezone,
+      run: async () => {
+        await run(bot);
+      },
     });
   }
-  return registered;
+  return scheduler.start(jobs);
+}
+
+export function stopScheduler(): void {
+  scheduler?.stop();
+  scheduler = null;
 }

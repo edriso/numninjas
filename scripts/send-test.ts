@@ -13,9 +13,9 @@
  * bot must be a channel admin with "Post messages" permission.
  */
 import { Bot } from 'grammy';
+import { logger } from 'telegram-broadcast-kit';
 import { config } from '../src/config';
 import { runQuestion } from '../src/scheduler';
-import { logger } from '../src/lib/logger';
 
 async function main(): Promise<void> {
   const arg = (process.argv[2] ?? 'warmup').toLowerCase();

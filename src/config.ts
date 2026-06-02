@@ -1,15 +1,10 @@
-// Load a local .env file IF the optional `dotenv` package is installed
-// AND a `.env` file exists. Production hosts inject env vars directly,
-// so neither the package nor the file is required. Missing either path
-// is silently fine: process.env is the source of truth.
-try {
-  const dotenv = await import('dotenv');
-  dotenv.config();
-} catch {
-  // dotenv is optional. In prod with env injected by the host, this
-  // import can be omitted entirely (npm install --omit=optional) and
-  // the bot still runs from process.env.
-}
+// One .env for the whole bot. loadEnv() (from telegram-broadcast-kit) finds the
+// project root and loads the single .env there, no matter which folder a command
+// runs from. Production hosts inject env vars directly; loadEnv never overrides
+// an already-set variable, so process.env stays the source of truth.
+import { loadEnv } from 'telegram-broadcast-kit';
+
+loadEnv();
 
 function requireEnv(key: string): string {
   const value = process.env[key];
@@ -50,7 +45,7 @@ const channelPublicUrl = process.env.CHANNEL_PUBLIC_URL?.trim();
 export const config = Object.freeze({
   botToken: requireEnv('BOT_TOKEN'),
   // Best practice is the numeric "-100..." id. "@channel" also works.
-  // Passed as-is to bot.api.sendMessage.
+  // Passed as-is to the Bot API.
   channelChatId,
   // Public link for /start in DMs. null if not configured.
   channelUrl: channelUrlFrom(channelPublicUrl || channelChatId),
@@ -65,11 +60,5 @@ export const config = Object.freeze({
   // 07:00 sits well clear of the 00:00..01:00 spring-forward gap that
   // node-cron silently skips.
   dailyCron: process.env.DAILY_CRON?.trim() || '0 7 * * *',
-  port: resolvePort(process.env.PORT),
   isDev: process.env.NODE_ENV !== 'production',
 });
-
-export function resolvePort(raw: string | undefined): number {
-  const n = Number(raw);
-  return Number.isFinite(n) && n > 0 && n < 65_536 ? n : 8080;
-}

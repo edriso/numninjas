@@ -11,28 +11,34 @@ Each puzzle is a context message plus a quiz poll. The quiz reveals the correct 
 
 The channel is read-only by design. No user accounts, no leaderboards, no DMs to manage. The bot exists to deliver good content on a schedule, and it is completely stateless.
 
+## Shared kernel
+
+The generic, non-domain plumbing lives in **telegram-broadcast-kit** (a separate package, pinned by git tag in `package.json`: `github:edriso/telegram-broadcast-kit#v0.2.0`). NumNinjas consumes it for: the console logger, the root `.env` loader (`loadEnv`), the timezone day math (`dayOfYearIn`), the channel poster (`post`, with opt-in `parseMode: 'HTML'` for the context message), the quiz poll (`sendPoll` in `type: 'quiz'` mode, with `correctOptionId` + `explanation` and the poll-close clamping), the node-cron registry + error containment (`Scheduler`, `runJob`), and the `/health` server. The kit gained quiz-poll and opt-in `parseMode` support in v0.2.0, which is exactly what this bot needs.
+
+What stays here (numninjas-specific, NOT in the kit): the question pools (`src/content/`), the `Question` type, the HTML context-message builder and `htmlEscape` (`src/lib/format.ts`), the content limits (`src/lib/limits.ts`), the typed daily picker over `Question` objects (`src/lib/pick.ts`, built on the kit's `dayOfYearIn` because the kit's own `pickForDay` only rotates strings), the two-post dispatch and morning batch (`src/scheduler.ts`), the schedule table (`src/schedules.ts`), and the edit-in-place welcome helper (`src/lib/post.ts`, which the kit does not cover).
+
+The pin is auto-bumped by **Renovate** (`renovate.json`): every other dependency is held quiet, so the only PR this repo ever opens is the shared-kernel bump. The `test` job in `.github/workflows/deploy.yml` runs `pnpm check` on every pull request, so that bump PR is gated before merge.
+
 ## Folder layout
 
 ```
 numninjas/
 ├── src/
-│   ├── index.ts          Entry point (bot, scheduler, health server)
-│   ├── config.ts         env loading. Required: BOT_TOKEN, CHANNEL_CHAT_ID.
+│   ├── index.ts          Entry point (bot, kit Scheduler, kit health server).
+│   ├── config.ts         env loading via the kit's loadEnv. Required: BOT_TOKEN, CHANNEL_CHAT_ID.
 │   ├── bot.ts            Grammy: /start, /about, /admin_warmup, /admin_challenge, /admin_daily.
-│   ├── scheduler.ts      node-cron wiring; runDailyQuestions posts warm-up then challenge.
+│   ├── scheduler.ts      The kit's Scheduler + the two-post dispatch; runDailyQuestions posts warm-up then challenge.
 │   ├── schedules.ts      THE EDIT POINT for timing: the daily cron entry.
 │   ├── types.ts          Question type + Difficulty union.
-│   ├── health.ts         /health HTTP endpoint for platform liveness checks.
 │   ├── content/
 │   │   ├── questions-warmup.ts     The warm-up (easy) pool.
 │   │   ├── questions-challenge.ts  The challenge (harder) pool.
 │   │   └── welcome.ts              Pinned welcome message body (HTML).
 │   └── lib/
-│       ├── logger.ts     Tiny structured console logger.
-│       ├── pick.ts       Deterministic day-of-year picker (timezone aware).
+│       ├── pick.ts       Typed daily Question picker (uses the kit's dayOfYearIn).
 │       ├── format.ts     Builds the HTML context message + quiz poll helpers.
 │       ├── limits.ts     Single source of truth for content length limits.
-│       └── post.ts       Context message, quiz poll, plain message, edit.
+│       └── post.ts       editChannelMessage (the one poster the kit does not cover).
 ├── scripts/
 │   ├── send-test.ts      Manual dev sender (warmup / challenge / both). Not imported by the app.
 │   ├── post-welcome.ts   Post or edit-in-place the pinned welcome message.
@@ -67,7 +73,7 @@ numninjas/
 - **Quiz polls reveal the answer.** Quiz polls show the correct option and the explanation when the reader votes. That is the learn-by-doing loop we want.
 - **Anonymous polls.** No one can see who voted. There is nothing to track and no privacy footprint, which matters when the audience is children.
 - **HTML parse mode.** Telegram HTML has only three special characters (`<`, `>`, `&`) so escaping is trivial. This matters for math text like "3 < 5". `<tg-spoiler>` hides the hint.
-- **`.env` is optional.** `src/config.ts` tries `import('dotenv')` and silently skips if dotenv is not installed. Production hosts that inject env vars need neither the file nor the package. Required values still throw if missing.
+- **`.env` is optional.** `src/config.ts` calls the kit's `loadEnv()`, which finds the project root and loads the single root `.env` if present, and never overrides a variable already set in the real environment. Production hosts that inject env vars need no file. Required values still throw if missing.
 - **No retries.** A failed Telegram call is logged; the tick is lost; the next morning takes over. The bot is meant to run for years untouched; a flaky-network day is not worth complicating the code for.
 - **Date math is timezone-safe.** `dayOfYearIn` uses `Intl.DateTimeFormat` with the timezone, never `Date.getDate()` which reads the host TZ. This matters when the host is in UTC and the channel runs on Cairo time.
 - **Answer spread is checked.** The audit and a unit test make sure the correct answer is not always in the same position, so readers cannot guess "always B" instead of doing the math.
@@ -103,20 +109,19 @@ The bot only needs **"Post messages"**. It never edits or deletes channel messag
 `pnpm test` runs Vitest. The suite covers:
 
 - The question pools: every entry has 4 non-empty, distinct options under 100 chars; an explanation under 200 chars; a valid `correctIndex` that points at a real option; a topic, scenario, prompt, hint, and explanation; no em-dashes; a sane render budget; unique ids; and a correct-answer spread that is not bunched in one position.
-- `pickForDay`: deterministic, cycles through the pool, throws on empty pool, respects the timezone.
+- `pickQuestion`: deterministic, cycles through the pool, throws on empty pool, respects the timezone (the day math itself, `dayOfYearIn`, is tested in the kit).
 - `formatContextMessage`: contains the brand, topic, scenario, and prompt; hides the hint in a spoiler; never leaks the explanation; shows the right badge; and stays well under 4096 chars.
 - `channelUrlFrom`: handles `@username`, full t.me URLs, numeric ids, and rejects short handles.
-- `resolvePort`: defaults to 8080 and rejects garbage.
 - The schedules registry: at least one fire, every cron valid, names unique, and every fire lands in the morning (05:00 to 11:00), never at night.
 - The daily batch notifications: the warm-up posts before the challenge, and exactly one item is audible (the last one), so the morning is a single ping.
 
-No test needs a real bot token; `vitest.config.ts` injects placeholders.
+The generic plumbing (the poster, the quiz poll + close-window clamping, `resolvePort`/`dayOfYearIn`, the cron registry) is tested in telegram-broadcast-kit, so those tests are no longer duplicated here. No test needs a real bot token; `vitest.config.ts` injects placeholders.
 
 ## Common gotchas
 
 - **Channel admin rights**: the bot must be a channel admin and "Post messages" must be on. Without it `sendMessage` and `sendPoll` return 403.
 - **Numeric chat id is safest**: `-1001234567890` keeps working even if the channel username changes later. `@channel` works but breaks on a rename.
-- **`correct_option_ids`, not `correct_option_id`**: Bot API 9.x renamed this to a plural array. A single-element array preserves the quiz behaviour. See `src/lib/post.ts`.
+- **The quiz poll goes through the kit**: `sendPoll(bot, chatId, spec, opts)` with `type: 'quiz'`, `correctOptionId` (0-based, required), and an optional `explanation` (≤200 chars). The kit validates the quiz config synchronously and THROWS on a bad `correctOptionId` or over-long explanation (a programming error), and clamps the close window. It does not thread the poll as a literal reply to the context message (the kit has no reply-to hook), so the two posts are grouped only by being posted back to back. If you ever need the reply arrow back, add a reply hook to the kit, not here.
 - **DST**: node-cron silently drops a job whose wall-clock time does not exist on the spring-forward day. The default 07:00 is safe in every IANA zone, and a test enforces the morning window.
 - **Polls are always anonymous**: by design. Nobody can see who voted, including the bot.
 - **Keep math answers short**: they go in the poll, so they must stay under 100 chars. The audit will fail otherwise.

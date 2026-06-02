@@ -9,10 +9,10 @@
  * update the text.
  */
 import { Bot } from 'grammy';
+import { post, logger } from 'telegram-broadcast-kit';
 import { config } from '../src/config';
 import { welcomeHtml } from '../src/content/welcome';
-import { editChannelMessage, postPlainMessage } from '../src/lib/post';
-import { logger } from '../src/lib/logger';
+import { editChannelMessage } from '../src/lib/post';
 
 async function main(): Promise<void> {
   const bot = new Bot(config.botToken);
@@ -33,7 +33,7 @@ async function main(): Promise<void> {
     return;
   }
 
-  const id = await postPlainMessage(bot, welcomeHtml, { parseMode: 'HTML' });
+  const id = await post(bot, config.channelChatId, welcomeHtml, { parseMode: 'HTML' });
   if (!id) {
     console.error('Post failed. See logs above.');
     process.exit(1);

@@ -1,8 +1,7 @@
 import type { Bot } from 'grammy';
+import { startHealthServer, logger } from 'telegram-broadcast-kit';
 import { buildBot } from './bot';
-import { startScheduler } from './scheduler';
-import { startHealthServer } from './health';
-import { logger } from './lib/logger';
+import { startScheduler, stopScheduler } from './scheduler';
 import { config } from './config';
 
 let shuttingDown = false;
@@ -11,9 +10,10 @@ async function shutdown(signal: string, bot: Bot): Promise<void> {
   if (shuttingDown) return; // a second signal must not race the first
   shuttingDown = true;
   logger.info(`${signal} received, shutting down...`);
-  // node-cron tasks stop when the process exits, so there is nothing to
-  // unregister. Await bot.stop() so an in-flight update is not cut off, but
-  // cap the wait so a stuck network call cannot hang shutdown forever.
+  // Stop the cron tasks first, then await bot.stop() so an in-flight update is
+  // not cut off, capping the wait so a stuck network call cannot hang shutdown
+  // forever.
+  stopScheduler();
   try {
     await Promise.race([bot.stop(), new Promise((resolve) => setTimeout(resolve, 5_000))]);
   } catch (err) {
@@ -29,11 +29,13 @@ async function main(): Promise<void> {
   process.once('SIGTERM', () => void shutdown('SIGTERM', bot));
 
   const scheduleCount = startScheduler(bot);
-  startHealthServer({ scheduleCount });
+  // The kit's health server reads PORT from the environment on its own.
+  startHealthServer();
 
   logger.info('Starting bot', {
     timezone: config.timezone,
     dailyCron: config.dailyCron,
+    schedules: scheduleCount,
     isDev: config.isDev,
   });
 
