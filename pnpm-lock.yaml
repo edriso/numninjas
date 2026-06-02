@@ -15,8 +15,8 @@ importers:
         specifier: ^4.2.1
         version: 4.2.1
       telegram-broadcast-kit:
-        specifier: github:edriso/telegram-broadcast-kit#v0.2.0
-        version: https://codeload.github.com/edriso/telegram-broadcast-kit/tar.gz/26479f7b8ff4d6120e9f3340106df5c877b89b43(grammy@1.43.0)(node-cron@4.2.1)
+        specifier: github:edriso/telegram-broadcast-kit#v0.2.1
+        version: https://codeload.github.com/edriso/telegram-broadcast-kit/tar.gz/1d4fd0db2998520a654f1cd504fad14a10616d5f(grammy@1.43.0)(node-cron@4.2.1)
       tsx:
         specifier: ^4.21.0
         version: 4.22.3
@@ -36,10 +36,6 @@ importers:
       vitest:
         specifier: ^4.1.6
         version: 4.1.7(@types/node@22.19.19)(vite@8.0.14(@types/node@22.19.19)(esbuild@0.28.0)(tsx@4.22.3))
-    optionalDependencies:
-      dotenv:
-        specifier: ^17.4.0
-        version: 17.4.2
 
 packages:
 
@@ -578,9 +574,9 @@ packages:
   std-env@4.1.0:
     resolution: {integrity: sha512-Rq7ybcX2RuC55r9oaPVEW7/xu3tj8u4GeBYHBWCychFtzMIr86A7e3PPEBPT37sHStKX3+TiX/Fr/ACmJLVlLQ==}
 
-  telegram-broadcast-kit@https://codeload.github.com/edriso/telegram-broadcast-kit/tar.gz/26479f7b8ff4d6120e9f3340106df5c877b89b43:
-    resolution: {tarball: https://codeload.github.com/edriso/telegram-broadcast-kit/tar.gz/26479f7b8ff4d6120e9f3340106df5c877b89b43}
-    version: 0.2.0
+  telegram-broadcast-kit@https://codeload.github.com/edriso/telegram-broadcast-kit/tar.gz/1d4fd0db2998520a654f1cd504fad14a10616d5f:
+    resolution: {tarball: https://codeload.github.com/edriso/telegram-broadcast-kit/tar.gz/1d4fd0db2998520a654f1cd504fad14a10616d5f}
+    version: 0.2.1
     engines: {node: '>=20.0.0'}
     peerDependencies:
       grammy: ^1.42.0
@@ -1120,7 +1116,7 @@ snapshots:
 
   std-env@4.1.0: {}
 
-  telegram-broadcast-kit@https://codeload.github.com/edriso/telegram-broadcast-kit/tar.gz/26479f7b8ff4d6120e9f3340106df5c877b89b43(grammy@1.43.0)(node-cron@4.2.1):
+  telegram-broadcast-kit@https://codeload.github.com/edriso/telegram-broadcast-kit/tar.gz/1d4fd0db2998520a654f1cd504fad14a10616d5f(grammy@1.43.0)(node-cron@4.2.1):
     dependencies:
       dotenv: 17.4.2
       grammy: 1.43.0

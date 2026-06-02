@@ -61,6 +61,8 @@ export async function runQuestion(
   // the reader votes, which is the learn-by-doing loop we want for kids. The
   // kit validates the quiz config synchronously (throws on a bad
   // correctOptionId or an over-long explanation) and clamps the close window.
+  // It is threaded as a reply to the context message so the poll visibly
+  // belongs to the problem above it (replyToMessageId, kit v0.2.1+).
   await sendPoll(
     bot,
     config.channelChatId,
@@ -71,7 +73,7 @@ export async function runQuestion(
       correctOptionId: question.correctIndex,
       explanation: question.explanation,
     },
-    { name: question.id, silent: opts.silent ?? false },
+    { name: question.id, silent: opts.silent ?? false, replyToMessageId: contextId },
   );
 }
 
