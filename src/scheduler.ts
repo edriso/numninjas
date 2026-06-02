@@ -30,9 +30,8 @@ function poolFor(difficulty: Difficulty): readonly Question[] {
  * If the context message fails, the poll is skipped, because a lone poll with
  * no scenario above it is useless to the reader.
  *
- * The two posts go out back to back so they read as a pair in the channel feed.
- * (The kit's sendPoll has no reply-to hook, so the poll is no longer a literal
- * reply to the context message; consecutive posting still groups them.)
+ * The poll is sent as a reply to the context message (the kit's
+ * replyToMessageId, v0.2.1+), so it visibly belongs to the scenario above it.
  */
 export async function runQuestion(
   difficulty: Difficulty,
