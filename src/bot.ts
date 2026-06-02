@@ -76,12 +76,15 @@ function isAdmin(id: number | undefined): boolean {
 }
 
 /**
- * Set the bot's public About (short description) and Description via the Bot
- * API, so the profile is self-describing on deploy with no manual @BotFather
- * step. Commands stay manual by design (see docs/BOTFATHER.md): this does NOT
- * call setMyCommands. The texts live in src/content/profile.ts.
+ * Set the bot's public commands, About (short description), and Description via
+ * the Bot API, so the whole profile is self-describing on deploy with no manual
+ * @BotFather step. The texts live in src/content/profile.ts.
  */
 export async function setBotProfile(bot: Bot): Promise<void> {
+  await bot.api.setMyCommands([
+    { command: 'start', description: 'What NumNinjas is and how to join the channel' },
+    { command: 'about', description: 'About this open-source bot' },
+  ]);
   await bot.api.setMyShortDescription(botAbout);
   await bot.api.setMyDescription(botDescription);
 }

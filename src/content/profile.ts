@@ -1,6 +1,6 @@
 // The bot's public profile copy, set on the bot itself via the Bot API on
-// startup (see setBotProfile in ../bot.ts). The matching @BotFather fields
-// (Edit About / Edit Description) are documented in docs/BOTFATHER.md.
+// startup (see setBotProfile in ../bot.ts), alongside the commands. Nothing
+// needs pasting into @BotFather by hand.
 
 /**
  * The "About" text (Telegram's short description), shown on the bot's profile.
@@ -11,7 +11,7 @@ export const botAbout =
 
 /**
  * The "Description", shown on the empty-chat start screen before a user taps
- * Start. Telegram caps this at 512 characters. Verbatim from docs/BOTFATHER.md.
+ * Start. Telegram caps this at 512 characters.
  */
 export const botDescription = [
   '👋 Hi ninja! NumNinjas posts two short math puzzles to its Telegram channel every morning: a gentle warm-up, then a tougher challenge.',
