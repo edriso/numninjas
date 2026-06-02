@@ -21,6 +21,10 @@ describe('dayOfYearIn', () => {
     expect(dayOfYearIn(d, 'Africa/Cairo')).toBe(60);
     expect(dayOfYearIn(d, 'UTC')).toBe(59);
   });
+
+  it('counts the leap day (Feb 29 is day 60 in a leap year)', () => {
+    expect(dayOfYearIn(new Date('2024-02-29T12:00:00Z'), 'UTC')).toBe(60);
+  });
 });
 
 describe('pickForDay', () => {
@@ -38,6 +42,14 @@ describe('pickForDay', () => {
     const day4 = pickForDay(pool, new Date('2026-01-04T00:00:00Z'), 'UTC');
     expect([day1, day2, day3]).toEqual(['a', 'b', 'c']);
     expect(day4).toBe('a');
+  });
+
+  it('wraps around when the day-of-year exceeds the pool length', () => {
+    // Pool of 3, day 4 (2026-01-04) -> (4-1) % 3 = 0 -> first item again.
+    const pool = ['a', 'b', 'c'];
+    expect(pickForDay(pool, new Date('2026-01-04T00:00:00Z'), 'UTC')).toBe('a');
+    // Day 7 -> (7-1) % 3 = 0 -> first item, a full two cycles in.
+    expect(pickForDay(pool, new Date('2026-01-07T00:00:00Z'), 'UTC')).toBe('a');
   });
 
   it('throws on empty pool', () => {

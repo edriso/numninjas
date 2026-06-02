@@ -39,6 +39,15 @@ export const MIN_CLOSE_HOURS = 5 / 3600;
 export const MAX_CLOSE_HOURS = 2_628_000 / 3600;
 
 /**
+ * Clamp a requested poll-close duration into Telegram's accepted window so a
+ * bad config can never make sendPoll reject the call. Pure, so it is unit
+ * tested without touching the network.
+ */
+export function clampCloseHours(requestedHours: number): number {
+  return Math.min(Math.max(requestedHours, MIN_CLOSE_HOURS), MAX_CLOSE_HOURS);
+}
+
+/**
  * Post the quiz poll. Quiz polls reveal the correct option and a short
  * explanation after the reader votes, which is exactly the "learn by
  * doing" loop we want for kids. The poll replies to the context message
@@ -59,8 +68,7 @@ export async function postQuizPoll(
   },
   meta: { questionId?: string; silent?: boolean } = {},
 ): Promise<number | null> {
-  const requestedHours = args.closeAfterHours ?? 22;
-  const clampedHours = Math.min(Math.max(requestedHours, MIN_CLOSE_HOURS), MAX_CLOSE_HOURS);
+  const clampedHours = clampCloseHours(args.closeAfterHours ?? 22);
   const closeDate = Math.floor(Date.now() / 1000) + Math.round(clampedHours * 3600);
 
   // Bot API 7.3+ expects InputPollOption objects, not plain strings.

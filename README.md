@@ -92,8 +92,8 @@ The `.env` file itself is optional. Production hosts that inject env vars direct
 | Command                   | What it does                                                         |
 | ------------------------- | -------------------------------------------------------------------- |
 | `pnpm dev`                | Start the bot locally with hot reload                                |
-| `pnpm start`              | Run the bot in production (runs the source through tsx)              |
-| `pnpm build`              | Type-check and compile TypeScript to `dist/` (optional, for CI)      |
+| `pnpm start`              | Run the compiled bot from `dist/` (after `pnpm build`)               |
+| `pnpm build`              | Type-check and compile TypeScript to `dist/`                         |
 | `pnpm test`               | Run unit tests (no network)                                          |
 | `pnpm typecheck`          | TypeScript with no emit                                              |
 | `pnpm audit-questions`    | Validate the question pools (option length, id uniqueness, etc.)     |

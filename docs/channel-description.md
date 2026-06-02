@@ -36,7 +36,7 @@ warm-up first, then a tougher challenge, to kick off the day.
 • Read the little real-life story and the question.
 • Have a go. Stuck? Tap the hint for a nudge.
 • Vote in the quiz poll. Telegram shows the correct answer and a short why
-  right after you tap.
+right after you tap.
 No setup, no signup, nothing to install. Just read, think, and tap.
 
 > Note: the full pinned welcome message lives in `src/content/welcome.ts`
