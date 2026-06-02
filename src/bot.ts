@@ -2,6 +2,7 @@ import { Bot } from 'grammy';
 import { logger } from 'telegram-broadcast-kit';
 import { config } from './config';
 import { runDailyQuestions, runQuestion } from './scheduler';
+import { botAbout, botDescription } from './content/profile';
 
 /**
  * Build and configure the Grammy bot. The bot exists mainly to drive
@@ -72,4 +73,15 @@ export function buildBot(): Bot {
 function isAdmin(id: number | undefined): boolean {
   if (!config.adminTelegramId || !id) return false;
   return BigInt(id) === config.adminTelegramId;
+}
+
+/**
+ * Set the bot's public About (short description) and Description via the Bot
+ * API, so the profile is self-describing on deploy with no manual @BotFather
+ * step. Commands stay manual by design (see docs/BOTFATHER.md): this does NOT
+ * call setMyCommands. The texts live in src/content/profile.ts.
+ */
+export async function setBotProfile(bot: Bot): Promise<void> {
+  await bot.api.setMyShortDescription(botAbout);
+  await bot.api.setMyDescription(botDescription);
 }

@@ -3,9 +3,10 @@
 Ready-to-paste text for the NumNinjas bot in @BotFather (the `/mybots` ->
 Edit Bot menu). The public texts are English. Copy each block as-is.
 
-Note: this bot does NOT set its command list automatically, so paste the
-Commands block below into BotFather to get the menu. (For contrast, the
-ayah bot self-registers its commands on start; NumNinjas does not.)
+Note: the bot now self-sets its About and Description on startup via the Bot
+API (see setBotProfile in src/bot.ts), so those two fields stay in sync from
+the source. Commands are still NOT set automatically by design, so paste the
+Commands block below into BotFather to get the menu.
 
 ---
 
@@ -17,7 +18,7 @@ NumNinjas
 
 (BotFather "Edit About", max ~120 characters. Shown on the bot's profile.)
 
-Daily math puzzles for kids 10 to 12 🥷 A warm-up and a challenge every morning, posted to the channel. Tap Start to join.
+Daily math puzzles for kids 10-12 🥷 A warm-up and a challenge every morning, posted to the channel. Tap Start to join.
 
 ## Description
 

@@ -1,6 +1,6 @@
 import type { Bot } from 'grammy';
 import { startHealthServer, logger } from 'telegram-broadcast-kit';
-import { buildBot } from './bot';
+import { buildBot, setBotProfile } from './bot';
 import { startScheduler, stopScheduler } from './scheduler';
 import { config } from './config';
 
@@ -39,9 +39,14 @@ async function main(): Promise<void> {
     isDev: config.isDev,
   });
 
+  // bot.start() does not resolve while long-polling, so set the public profile
+  // (About + Description) from onStart, which fires once the bot is up.
   await bot.start({
     onStart: (info) => {
       logger.info('Bot started', { username: info.username });
+      void setBotProfile(bot).catch((err) =>
+        logger.error('Failed to set bot profile', { error: String(err) }),
+      );
     },
   });
 }
