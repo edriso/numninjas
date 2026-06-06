@@ -1,4 +1,5 @@
 import { describe, expect, it } from 'vitest';
+import { ltrIsolate } from 'telegram-broadcast-kit';
 import { formatContextMessage, htmlEscape, pollOptions, pollQuestion } from '../src/lib/format';
 import { warmupQuestions } from '../src/content/questions-warmup';
 import { challengeQuestions } from '../src/content/questions-challenge';
@@ -70,9 +71,24 @@ describe('poll helpers', () => {
     expect(pollQuestion().length).toBeLessThan(300);
   });
 
-  it('returns the four real answer options in order', () => {
+  it('pins the poll question to left-to-right so it never mirrors on RTL locales', () => {
+    // The text must be wrapped in a Unicode LTR isolate (U+2066 ... U+2069).
+    expect(pollQuestion()).toBe(ltrIsolate('Which answer is correct? 🥷'));
+    expect(pollQuestion().codePointAt(0)).toBe(0x2066);
+    expect(pollQuestion().codePointAt(pollQuestion().length - 1)).toBe(0x2069);
+  });
+
+  it('returns the four real answer options in order, each pinned left-to-right', () => {
     const q = warmupQuestions[0]!;
-    expect(pollOptions(q)).toEqual(q.options);
+    expect(pollOptions(q)).toEqual(q.options.map(ltrIsolate));
     expect(pollOptions(q).length).toBe(4);
+  });
+
+  it('keeps every wrapped option under Telegram 100-char poll-option limit', () => {
+    for (const item of [...warmupQuestions, ...challengeQuestions]) {
+      for (const opt of pollOptions(item)) {
+        expect(opt.length, item.id).toBeLessThanOrEqual(100);
+      }
+    }
   });
 });
