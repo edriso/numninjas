@@ -62,6 +62,11 @@ export async function runQuestion(
   // correctOptionId or an over-long explanation) and clamps the close window.
   // It is threaded as a reply to the context message so the poll visibly
   // belongs to the problem above it (replyToMessageId, kit v0.2.1+).
+  //
+  // direction: 'ltr' tells the kit our content is left-to-right, so it wraps
+  // the question and options in an LTR bidi isolate. Without it the kit's
+  // default RTL isolate (its Arabic origin) mirrors our English text for the
+  // reader: "1 sweet" renders "sweet 1". Needs kit v0.2.2+.
   await sendPoll(
     bot,
     config.channelChatId,
@@ -71,6 +76,7 @@ export async function runQuestion(
       type: 'quiz',
       correctOptionId: question.correctIndex,
       explanation: question.explanation,
+      direction: 'ltr',
     },
     { name: question.id, silent: opts.silent ?? false, replyToMessageId: contextId },
   );

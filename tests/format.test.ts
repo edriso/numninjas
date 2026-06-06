@@ -1,5 +1,4 @@
 import { describe, expect, it } from 'vitest';
-import { ltrIsolate } from 'telegram-broadcast-kit';
 import { formatContextMessage, htmlEscape, pollOptions, pollQuestion } from '../src/lib/format';
 import { warmupQuestions } from '../src/content/questions-warmup';
 import { challengeQuestions } from '../src/content/questions-challenge';
@@ -71,23 +70,33 @@ describe('poll helpers', () => {
     expect(pollQuestion().length).toBeLessThan(300);
   });
 
-  it('pins the poll question to left-to-right so it never mirrors on RTL locales', () => {
-    // The text must be wrapped in a Unicode LTR isolate (U+2066 ... U+2069).
-    expect(pollQuestion()).toBe(ltrIsolate('Which answer is correct? 🥷'));
-    expect(pollQuestion().codePointAt(0)).toBe(0x2066);
-    expect(pollQuestion().codePointAt(pollQuestion().length - 1)).toBe(0x2069);
-  });
-
-  it('returns the four real answer options in order, each pinned left-to-right', () => {
+  it('returns the four real answer options verbatim, in order', () => {
+    // The strings stay plain here; the kit applies the LTR bidi isolate at
+    // send time (direction: 'ltr' in scheduler.ts), so these must NOT carry
+    // any directional marks of their own.
     const q = warmupQuestions[0]!;
-    expect(pollOptions(q)).toEqual(q.options.map(ltrIsolate));
+    expect(pollOptions(q)).toEqual(q.options);
     expect(pollOptions(q).length).toBe(4);
   });
 
-  it('keeps every wrapped option under Telegram 100-char poll-option limit', () => {
+  it('keeps every poll string free of bidi control characters (the kit adds them)', () => {
+    // LRM/RLM (U+200E/F), the embeddings/overrides/PDF (U+202A-U+202E), and the
+    // isolates (U+2066-U+2069) are exactly the directional formatting
+    // characters the kit may add; none should already be present in our source.
+    const isBidiControl = (s: string) =>
+      [...s].some((ch) => {
+        const cp = ch.codePointAt(0)!;
+        return (
+          cp === 0x200e ||
+          cp === 0x200f ||
+          (cp >= 0x202a && cp <= 0x202e) ||
+          (cp >= 0x2066 && cp <= 0x2069)
+        );
+      });
+    expect(isBidiControl(pollQuestion())).toBe(false);
     for (const item of [...warmupQuestions, ...challengeQuestions]) {
       for (const opt of pollOptions(item)) {
-        expect(opt.length, item.id).toBeLessThanOrEqual(100);
+        expect(isBidiControl(opt), item.id).toBe(false);
       }
     }
   });
