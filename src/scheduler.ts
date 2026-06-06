@@ -3,10 +3,8 @@ import { Scheduler, post, sendPoll, logger, type CronJob } from 'telegram-broadc
 import { config } from './config';
 import { schedules } from './schedules';
 import { formatContextMessage, pollOptions, pollQuestion } from './lib/format';
-import { pickQuestion } from './lib/pick';
-import { warmupQuestions } from './content/questions-warmup';
-import { challengeQuestions } from './content/questions-challenge';
-import type { Difficulty, Question } from './types';
+import { generateQuestion } from './lib/generate';
+import type { Difficulty } from './types';
 
 // The bot-specific schedule layer. The generic cron plumbing (error
 // containment, the node-cron registry) and the channel send/poll wrappers now
@@ -18,13 +16,9 @@ import type { Difficulty, Question } from './types';
 // on shutdown. Built lazily on the first startScheduler call.
 let scheduler: Scheduler | null = null;
 
-function poolFor(difficulty: Difficulty): readonly Question[] {
-  return difficulty === 'warmup' ? warmupQuestions : challengeQuestions;
-}
-
 /**
  * Fire one math question. The full flow:
- *   1. pick the question for today's date in the configured timezone
+ *   1. generate the question for today's date in the configured timezone
  *   2. post the context message (HTML parse_mode; returns its message_id)
  *   3. post the quiz poll right below it
  * If the context message fails, the poll is skipped, because a lone poll with
@@ -38,8 +32,7 @@ export async function runQuestion(
   bot: Bot<Context>,
   opts: { silent?: boolean } = {},
 ): Promise<void> {
-  const pool = poolFor(difficulty);
-  const question = pickQuestion(pool, new Date(), config.timezone);
+  const question = generateQuestion(difficulty, new Date(), config.timezone);
 
   const contextHtml = formatContextMessage(question);
   // The context message is always silent: it is setup text, and pinging on it

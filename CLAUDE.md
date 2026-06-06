@@ -15,7 +15,7 @@ The channel is read-only by design. No user accounts, no leaderboards, no DMs to
 
 The generic, non-domain plumbing lives in **telegram-broadcast-kit** (a separate package, pinned by git tag in `package.json`: `github:edriso/telegram-broadcast-kit#v0.2.2`). NumNinjas consumes it for: the console logger, the root `.env` loader (`loadEnv`), the timezone day math (`dayOfYearIn`), the channel poster (`post`, with opt-in `parseMode: 'HTML'` for the context message), the quiz poll (`sendPoll` in `type: 'quiz'` mode, with `correctOptionId` + `explanation`, the poll-close clamping, and `direction: 'ltr'` so the kit wraps the plain-text question and options in a left-to-right bidi isolate), the node-cron registry + error containment (`Scheduler`, `runJob`), and the `/health` server. The kit gained quiz-poll and opt-in `parseMode` support in v0.2.0 and the poll `direction` option in v0.2.2, which is exactly what this bot needs.
 
-What stays here (numninjas-specific, NOT in the kit): the question pools (`src/content/`), the `Question` type, the HTML context-message builder and `htmlEscape` (`src/lib/format.ts`), the content limits (`src/lib/limits.ts`), the typed daily picker over `Question` objects (`src/lib/pick.ts`, built on the kit's `dayOfYearIn` because the kit's own `pickForDay` only rotates strings), the two-post dispatch and morning batch (`src/scheduler.ts`), the schedule table (`src/schedules.ts`), and the edit-in-place welcome helper (`src/lib/post.ts`, which the kit does not cover).
+What stays here (numninjas-specific, NOT in the kit): the question **templates** (`src/content/templates-*.ts`) and the `Question`/`QuestionTemplate`/`GeneratedCore` types, the parametric **generator** (`src/lib/generate.ts`) and its deterministic PRNG (`src/lib/rng.ts`) and validator (`src/lib/validate.ts`), all built on the kit's `dayOfYearIn`; the HTML context-message builder and `htmlEscape` (`src/lib/format.ts`); the content limits (`src/lib/limits.ts`); the two-post dispatch and morning batch (`src/scheduler.ts`); the schedule table (`src/schedules.ts`); and the edit-in-place welcome helper (`src/lib/post.ts`, which the kit does not cover).
 
 The pin is auto-bumped by **Renovate** (`renovate.json`): every other dependency is held quiet, so the only PR this repo ever opens is the shared-kernel bump. The `test` job in `.github/workflows/deploy.yml` runs `pnpm check` on every pull request, so that bump PR is gated before merge.
 
@@ -29,20 +29,23 @@ numninjas/
 │   ├── bot.ts            Grammy: /start, /about, /admin_warmup, /admin_challenge, /admin_daily.
 │   ├── scheduler.ts      The kit's Scheduler + the two-post dispatch; runDailyQuestions posts warm-up then challenge.
 │   ├── schedules.ts      THE EDIT POINT for timing: the daily cron entry.
-│   ├── types.ts          Question type + Difficulty union.
+│   ├── types.ts          Question, QuestionTemplate, GeneratedCore, Difficulty.
 │   ├── content/
-│   │   ├── questions-warmup.ts     The warm-up (easy) pool.
-│   │   ├── questions-challenge.ts  The challenge (harder) pool.
+│   │   ├── templates-warmup.ts     The warm-up (easy) templates.
+│   │   ├── templates-challenge.ts  The challenge (harder) templates.
+│   │   ├── helpers.ts              unit() pluralizer + wrongInts() distractor builder.
 │   │   └── welcome.ts              Pinned welcome message body (HTML).
 │   └── lib/
-│       ├── pick.ts       Typed daily Question picker (uses the kit's dayOfYearIn).
+│       ├── generate.ts   Daily question generator (picks a template by day, seeds the rng).
+│       ├── rng.ts        Deterministic PRNG (mulberry32 + seedFrom). No Math.random, ever.
+│       ├── validate.ts   questionProblems(): the shared "is this well-formed" rules.
 │       ├── format.ts     Builds the HTML context message + quiz poll helpers.
 │       ├── limits.ts     Single source of truth for content length limits.
 │       └── post.ts       editChannelMessage (the one poster the kit does not cover).
 ├── scripts/
 │   ├── send-test.ts      Manual dev sender (warmup / challenge / both). Not imported by the app.
 │   ├── post-welcome.ts   Post or edit-in-place the pinned welcome message.
-│   └── audit-questions.ts Sanity-check the pools (length, uniqueness, answer spread).
+│   └── audit-questions.ts Fuzz every template through the validator (thousands of seeds).
 ├── tests/                Vitest unit tests, no network.
 ├── docs/
 │   ├── DEPLOY.md         Host-agnostic deploy notes.
@@ -63,13 +66,13 @@ numninjas/
 
 ## Design choices
 
-- **No database, no state.** The day's two questions are picked deterministically from `dayOfYearInTimezone(date, TZ) % pool.length`. The same calendar day always returns the same questions, so a restart cannot accidentally pick a "new" question for the same slot. The two pools (warm-up, challenge) advance independently. To extend the cycle, just add more questions. Nothing is written to disk, ever.
+- **No database, no state, but questions are generated, not banked.** Each day's two questions are GENERATED from parametric templates (`src/content/templates-*.ts`) with fresh, day-seeded numbers, not picked from a fixed bank. The generator (`src/lib/generate.ts`) rotates the template by `dayOfYearIn` and draws the numbers from a deterministic PRNG (`src/lib/rng.ts`) seeded purely from the calendar day (year + day-of-year + a per-difficulty salt). So the same calendar day always returns exactly the same question (a mid-day restart cannot re-roll it), yet the numbers are fresh every day and every year, so a follower effectively never meets the same question twice within a year while the topic still rotates predictably. Nothing is written to disk, ever. To add variety, add a template (a new topic); the numbers are already infinite. The generator validates each draw against `src/lib/validate.ts` and re-rolls the rare bad one with a bumped seed (still deterministic), so a malformed question can never reach the channel.
 - **One daily fire, two questions.** A single cron (default `0 7 * * *`) runs `runDailyQuestions`, which posts the warm-up and then the challenge in sequence (awaited, not parallel) so the feed always reads warm-up then challenge, never interleaved.
 - **Morning only.** Kids do best with short, frequent practice, and an early-morning post rewards waking up early while never competing with bedtime. A unit test pins every fire to the 05:00 to 11:00 window so no one accidentally schedules a late-night post (it also keeps the hour clear of the 00:00 to 01:00 spring-forward gap node-cron silently skips).
 - **Real answers in the poll, not letters.** Math answers are short (like "23 pounds"), so they fit Telegram's 100-char poll-option limit and go straight into the quiz poll. A kid taps the actual answer. This is the one deliberate difference from text-heavy quiz bots that have to hide long answers (such as SQL queries) in the message and show A/B/C/D in the poll. We have no such constraint, so the simpler, friendlier design wins.
 - **Two posts per question.** The first is an HTML context message with the real-life scenario, the question, and the hint in a `<tg-spoiler>` tag. The second is a quiz poll replying to the first, carrying the four real answers. The reader sees both posts grouped in the feed.
 - **One quiet ping a day.** The morning batch posts four messages (two questions, each a context message plus a poll), but only the day's challenge poll rings. Every context message is silent (it is setup text), and the warm-up poll is silent too, so a follower's phone buzzes once, not four times. The pattern lives in one place, `dailyBatch` in `scheduler.ts` (a `silent` flag per question, with context always silent), and a unit test pins it to exactly one audible post, landing last. To go fully silent, set the challenge to `silent: true`.
-- **The context message does not list the options.** They live only in the poll. This keeps the message short for a young reader and avoids spoiling the quiz. A unit test guards that the explanation (the "why") never leaks into the message for any question.
+- **The context message does not list the options.** They live only in the poll. This keeps the message short for a young reader and avoids spoiling the quiz. A unit test guards that the explanation (the "why") never leaks into the message for a representative sample of generated questions.
 - **Quiz polls reveal the answer.** Quiz polls show the correct option and the explanation when the reader votes. That is the learn-by-doing loop we want.
 - **Anonymous polls.** No one can see who voted. There is nothing to track and no privacy footprint, which matters when the audience is children.
 - **HTML parse mode.** Telegram HTML has only three special characters (`<`, `>`, `&`) so escaping is trivial. This matters for math text like "3 < 5". `<tg-spoiler>` hides the hint.
@@ -77,15 +80,15 @@ numninjas/
 - **`.env` is optional.** `src/config.ts` calls the kit's `loadEnv()`, which finds the project root and loads the single root `.env` if present, and never overrides a variable already set in the real environment. Production hosts that inject env vars need no file. Required values still throw if missing.
 - **No retries.** A failed Telegram call is logged; the tick is lost; the next morning takes over. The bot is meant to run for years untouched; a flaky-network day is not worth complicating the code for.
 - **Date math is timezone-safe.** `dayOfYearIn` uses `Intl.DateTimeFormat` with the timezone, never `Date.getDate()` which reads the host TZ. This matters when the host is in UTC and the channel runs on Cairo time.
-- **Answer spread is checked.** The audit and a unit test make sure the correct answer is not always in the same position, so readers cannot guess "always B" instead of doing the math.
-- **Pool audit is a script and a test, not a runtime check.** Author mistakes are caught at edit time by `pnpm audit-questions` and the tests. The runtime trusts the pools.
+- **Answer spread is automatic and checked.** The generator shuffles the four options each day, so the correct answer lands in every position over the year. The audit and a unit test confirm the spread is balanced, so readers cannot guess "always B" instead of doing the math.
+- **Template audit is a script and a test, not a runtime check.** Author mistakes (a template that can render a duplicate or over-long option) are caught at edit time by `pnpm audit-questions`, which fuzzes every template through thousands of seeds, and by the tests, which generate a full year. The runtime still validates and re-rolls defensively, but the templates are meant to be correct by construction.
 
 ## How to change what it posts
 
-1. **Pick the right pool.** Easy goes in `src/content/questions-warmup.ts`, harder in `src/content/questions-challenge.ts`. The id prefix must match (`warmup-` or `challenge-`).
-2. **Edit or append.** Each entry is a `Question` object. See `docs/QUESTIONS.md` for the full checklist.
-3. **Validate.** `pnpm audit-questions && pnpm test`.
-4. **Preview.** `pnpm send-test warmup` or `pnpm send-test challenge` posts today's question to the configured channel immediately.
+1. **Pick the right file.** Easy templates go in `src/content/templates-warmup.ts`, harder ones in `src/content/templates-challenge.ts`. The template `id` prefix must match (`warmup-` or `challenge-`).
+2. **Add or edit a template.** Each entry is a `QuestionTemplate` whose `generate(rng)` draws this day's numbers and returns the answer plus three believable wrong turns. Keep the number ranges so the maths stays friendly and the options are always clean, distinct, and non-negative (`wrongInts`/`unit` in `helpers.ts` help). See `docs/QUESTIONS.md` for the full checklist.
+3. **Validate.** `pnpm audit-questions && pnpm test` (the audit fuzzes every template through thousands of seeds).
+4. **Preview.** `pnpm send-test warmup` or `pnpm send-test challenge` posts today's generated question to the configured channel immediately.
 5. **Redeploy.**
 
 ## Environment variables
@@ -109,8 +112,8 @@ The bot only needs **"Post messages"**. It never edits or deletes channel messag
 
 `pnpm test` runs Vitest. The suite covers:
 
-- The question pools: every entry has 4 non-empty, distinct options under 100 chars; an explanation under 200 chars; a valid `correctIndex` that points at a real option; a topic, scenario, prompt, hint, and explanation; no em-dashes; a sane render budget; unique ids; and a correct-answer spread that is not bunched in one position.
-- `pickQuestion`: deterministic, cycles through the pool, throws on empty pool, respects the timezone (the day math itself, `dayOfYearIn`, is tested in the kit).
+- `generateQuestion` (and the templates): generates a valid question for every day across two years in both difficulties (4 non-empty, distinct options under 100 chars; an explanation under 200; a `correctIndex` that points at the answer; no em-dashes; a sane render budget); is deterministic per day; rotates templates by day-of-year; gives fresh numbers (a year of days yields far more distinct prompts than templates) that are not annually fixed; spreads the correct answer across all four positions; respects the timezone; and keeps the warm-up and challenge streams independent.
+- `mulberry32`/`seedFrom` (`rng.ts`): deterministic per seed, in-range `int`, non-mutating `shuffle`, order- and adjacency-sensitive seeds.
 - `formatContextMessage`: contains the brand, topic, scenario, and prompt; hides the hint in a spoiler; never leaks the explanation; shows the right badge; and stays well under 4096 chars.
 - The poll helpers: `pollQuestion` stays under 300 chars; `pollOptions` returns the four real answers verbatim and in order; and neither carries any bidi control characters (the kit adds the left-to-right isolate at send time, driven by `direction: 'ltr'`).
 - `channelUrlFrom`: handles `@username`, full t.me URLs, numeric ids, and rejects short handles.

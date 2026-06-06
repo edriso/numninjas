@@ -1,3 +1,5 @@
+import type { Rng } from './lib/rng';
+
 export type Difficulty = 'warmup' | 'challenge';
 
 /**
@@ -38,4 +40,41 @@ export type Question = {
   correctIndex: 0 | 1 | 2 | 3;
   /** Shown by Telegram after the reader votes. Keep it short and clear. */
   explanation: string;
+};
+
+/**
+ * The fresh-numbers core a template produces for one day. The generator
+ * (src/lib/generate.ts) turns this into a full {@link Question}: it shuffles
+ * `[answer, ...distractors]` into the four poll options and records where the
+ * answer landed, so the correct position is spread across the year for free.
+ *
+ * A template OWNS its own correctness: it computes `answer` and picks
+ * `distractors` that are believable wrong turns (the actual mistakes a kid
+ * makes), all distinct from the answer and from each other. The generator only
+ * validates and re-rolls on the rare bad draw; it never invents answers.
+ */
+export type GeneratedCore = {
+  /** Short header label, e.g. "Multiplication". Usually the template's topic. */
+  topic: string;
+  scenario: string;
+  prompt: string;
+  hint: string;
+  /** The correct answer, already formatted with any unit (e.g. "23 pounds"). */
+  answer: string;
+  /** Exactly three wrong answers, distinct from `answer` and each other. */
+  distractors: [string, string, string];
+  explanation: string;
+};
+
+/**
+ * A parametric question template. `generate` draws this day's numbers from the
+ * (deterministic, day-seeded) `rng` and returns the {@link GeneratedCore}. The
+ * `id` carries the difficulty prefix ("warmup-" / "challenge-") and names the
+ * template, not a single question (there is no longer a fixed bank).
+ */
+export type QuestionTemplate = {
+  id: string;
+  difficulty: Difficulty;
+  topic: string;
+  generate: (rng: Rng) => GeneratedCore;
 };

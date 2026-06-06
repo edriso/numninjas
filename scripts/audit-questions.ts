@@ -1,151 +1,68 @@
 /**
- * Question-pool sanity checker. Run with `pnpm audit-questions`.
+ * Template audit. Run with `pnpm audit-questions`.
  *
- * Catches the kinds of mistakes the runtime will not: a duplicate id, an
- * option longer than Telegram's poll-option limit, an explanation over
- * the 200-char quiz limit, a correctIndex out of range, or a correct
- * answer that is always in the same position (which would let readers
- * guess without thinking). Pure data check, no network, no bot token
- * needed. Exits with code 1 on any failure so it can be wired into CI.
+ * Questions are now GENERATED from parametric templates (src/content/
+ * templates-*.ts), not a fixed bank, so this audit fuzzes every template
+ * through many seeds and checks each generated question against the same rules
+ * the runtime uses (src/lib/validate.ts): exactly four distinct, non-empty
+ * options within Telegram's limits, a correctIndex that points at the answer,
+ * an explanation within the quiz limit, no em-dashes, and a sane render budget.
+ * It also checks that, across the fuzz, the correct answer does not bunch in one
+ * position (which would let readers guess without doing the maths). Pure data
+ * check, no network, no bot token. Exits 1 on any failure so it can gate CI.
  */
-import { warmupQuestions } from '../src/content/questions-warmup';
-import { challengeQuestions } from '../src/content/questions-challenge';
-import type { Question } from '../src/types';
-import {
-  EXPLANATION_MAX_CHARS,
-  MESSAGE_BUDGET_CHARS,
-  OPTION_MAX_CHARS,
-  QUESTION_MAX_CHARS,
-} from '../src/lib/limits';
+import { warmupTemplates } from '../src/content/templates-warmup';
+import { challengeTemplates } from '../src/content/templates-challenge';
+import { assembleQuestion } from '../src/lib/generate';
+import { questionProblems } from '../src/lib/validate';
+import { mulberry32 } from '../src/lib/rng';
+import type { QuestionTemplate } from '../src/types';
 
-type Issue = { id: string; field: string; detail: string };
-const issues: Issue[] = [];
+// How many seeds to try per template. Each seed is a different "day", so this
+// is far more coverage than a year of real posting.
+const FUZZ_SEEDS = 3000;
 
-function check(qs: readonly Question[], prefix: 'warmup-' | 'challenge-'): void {
-  const seenIds = new Set<string>();
-  for (const q of qs) {
-    if (!q.id.startsWith(prefix)) {
-      issues.push({ id: q.id, field: 'id', detail: `must start with "${prefix}"` });
-    }
-    if (seenIds.has(q.id)) {
-      issues.push({ id: q.id, field: 'id', detail: 'duplicate id' });
-    }
-    seenIds.add(q.id);
+let failures = 0;
 
-    if (q.options.length !== 4) {
-      issues.push({
-        id: q.id,
-        field: 'options',
-        detail: `must have exactly 4, found ${q.options.length}`,
-      });
+function audit(templates: readonly QuestionTemplate[], label: string): void {
+  const ids = new Set<string>();
+  for (const template of templates) {
+    if (ids.has(template.id)) {
+      console.error(`  [${template.id}] duplicate template id`);
+      failures++;
     }
-    for (let i = 0; i < q.options.length; i++) {
-      const opt = q.options[i] ?? '';
-      if (opt.trim().length === 0) {
-        issues.push({ id: q.id, field: `options[${i}]`, detail: 'empty' });
-      }
-      if (opt.length > OPTION_MAX_CHARS) {
-        issues.push({
-          id: q.id,
-          field: `options[${i}]`,
-          detail: `length ${opt.length} > ${OPTION_MAX_CHARS}`,
-        });
+    ids.add(template.id);
+
+    const positions = [0, 0, 0, 0];
+    for (let seed = 1; seed <= FUZZ_SEEDS; seed++) {
+      const q = assembleQuestion(template, mulberry32(seed));
+      positions[q.correctIndex] = (positions[q.correctIndex] ?? 0) + 1;
+      const problems = questionProblems(q);
+      if (problems.length > 0) {
+        failures++;
+        console.error(`  [${template.id}] seed ${seed}: ${problems.join('; ')}`);
+        // One example per template is enough to start fixing; stop spamming.
+        break;
       }
     }
-    // Duplicate options would make a question ambiguous (two "correct"
-    // looking taps), so flag them.
-    if (new Set(q.options).size !== q.options.length) {
-      issues.push({ id: q.id, field: 'options', detail: 'options must all be different' });
-    }
-    if (q.correctIndex < 0 || q.correctIndex > 3) {
-      issues.push({ id: q.id, field: 'correctIndex', detail: `out of range: ${q.correctIndex}` });
-    }
-    if (q.explanation.length > EXPLANATION_MAX_CHARS) {
-      issues.push({
-        id: q.id,
-        field: 'explanation',
-        detail: `length ${q.explanation.length} > ${EXPLANATION_MAX_CHARS}`,
-      });
-    }
-    if (q.prompt.length > QUESTION_MAX_CHARS) {
-      issues.push({
-        id: q.id,
-        field: 'prompt',
-        detail: `length ${q.prompt.length} > ${QUESTION_MAX_CHARS}`,
-      });
-    }
-    if (!q.hint || q.hint.trim().length === 0) {
-      issues.push({ id: q.id, field: 'hint', detail: 'empty' });
-    }
-    if (!q.scenario || q.scenario.trim().length === 0) {
-      issues.push({ id: q.id, field: 'scenario', detail: 'empty' });
-    }
-    if (!q.explanation || q.explanation.trim().length === 0) {
-      issues.push({ id: q.id, field: 'explanation', detail: 'empty' });
-    }
-    // Em-dashes read as machine-generated and look out of place in a
-    // kids' learning channel. Keep prose to commas, colons, and full
-    // stops. See docs/QUESTIONS.md.
-    const proseFields: Array<[string, string]> = [
-      ['scenario', q.scenario],
-      ['prompt', q.prompt],
-      ['hint', q.hint],
-      ['explanation', q.explanation],
-    ];
-    for (const [field, value] of proseFields) {
-      if (value.includes('—') || value.includes('–')) {
-        issues.push({ id: q.id, field, detail: 'no em-dashes or en-dashes in prose' });
-      }
-    }
-    // Defensive check that the rendered message will not blow Telegram's
-    // 4096-char sendMessage cap. The raw text fields dominate; staying
-    // under MESSAGE_BUDGET_CHARS leaves comfortable headroom.
-    const totalText =
-      q.scenario.length +
-      q.prompt.length +
-      q.hint.length +
-      q.options.reduce((sum, o) => sum + o.length, 0);
-    if (totalText > MESSAGE_BUDGET_CHARS) {
-      issues.push({
-        id: q.id,
-        field: 'total text',
-        detail: `length ${totalText} > ${MESSAGE_BUDGET_CHARS}`,
-      });
+
+    // The shuffle should land the answer in every position with rough balance.
+    const max = Math.max(...positions);
+    if (max / FUZZ_SEEDS > 0.4 || positions.some((p) => p === 0)) {
+      failures++;
+      console.error(`  [${template.id}] answer position not well spread: ${positions.join('/')}`);
     }
   }
+  console.log(`${label}: ${templates.length} templates fuzzed x ${FUZZ_SEEDS} seeds.`);
 }
 
-/**
- * The correct answer should not sit in the same position too often, or
- * readers learn to guess "always B" instead of doing the math. Warn (do
- * not fail) if any single position holds more than 45% of the answers.
- */
-function checkAnswerSpread(qs: readonly Question[], label: string): void {
-  const counts = [0, 0, 0, 0];
-  for (const q of qs) counts[q.correctIndex] = (counts[q.correctIndex] ?? 0) + 1;
-  const max = Math.max(...counts);
-  if (qs.length > 0 && max / qs.length > 0.45) {
-    console.warn(
-      `WARN [${label}]: answers are bunched in one position (${counts.join('/')}). Spread them out.`,
-    );
-  }
-}
+audit(warmupTemplates, 'Warm-up ');
+audit(challengeTemplates, 'Challenge');
 
-check(warmupQuestions, 'warmup-');
-check(challengeQuestions, 'challenge-');
-checkAnswerSpread(warmupQuestions, 'warmup');
-checkAnswerSpread(challengeQuestions, 'challenge');
-
-console.log(`Warm-up questions:   ${warmupQuestions.length}`);
-console.log(`Challenge questions: ${challengeQuestions.length}`);
-
-if (issues.length === 0) {
-  console.log('OK: all questions pass the audit.');
+if (failures === 0) {
+  console.log('OK: all templates generate valid, well-spread questions.');
   process.exit(0);
 }
 
-console.error(`Found ${issues.length} issue(s):`);
-for (const i of issues) {
-  console.error(`  [${i.id}] ${i.field}: ${i.detail}`);
-}
+console.error(`Found ${failures} issue(s).`);
 process.exit(1);

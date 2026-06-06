@@ -1,7 +1,24 @@
 import { describe, expect, it } from 'vitest';
 import { formatContextMessage, htmlEscape, pollOptions, pollQuestion } from '../src/lib/format';
-import { warmupQuestions } from '../src/content/questions-warmup';
-import { challengeQuestions } from '../src/content/questions-challenge';
+import { assembleQuestion } from '../src/lib/generate';
+import { mulberry32 } from '../src/lib/rng';
+import { warmupTemplates } from '../src/content/templates-warmup';
+import { challengeTemplates } from '../src/content/templates-challenge';
+import type { Question, QuestionTemplate } from '../src/types';
+
+// Questions are generated, so build a representative sample by assembling each
+// template across several seeds (mirroring how the engine builds them at run
+// time). Enough variety to exercise the formatter without needing the network.
+function sample(templates: readonly QuestionTemplate[], seeds = 5): Question[] {
+  const out: Question[] = [];
+  for (const t of templates) {
+    for (let s = 1; s <= seeds; s++) out.push(assembleQuestion(t, mulberry32(s * 1009 + 7)));
+  }
+  return out;
+}
+const warmupSamples = sample(warmupTemplates);
+const challengeSamples = sample(challengeTemplates);
+const allSamples = [...warmupSamples, ...challengeSamples];
 
 describe('htmlEscape', () => {
   it('escapes the three HTML-special characters', () => {
@@ -18,7 +35,7 @@ describe('htmlEscape', () => {
 });
 
 describe('formatContextMessage', () => {
-  const q = warmupQuestions[0]!;
+  const q = warmupSamples[0]!;
 
   it('contains the brand, topic, scenario, and prompt', () => {
     const out = formatContextMessage(q);
@@ -35,7 +52,7 @@ describe('formatContextMessage', () => {
     expect(out).toContain(q.hint);
   });
 
-  it('does not leak the answer options into the context message', () => {
+  it('does not leak the correct answer into the context message', () => {
     // Options live in the poll, not the message. The correct option text
     // should not appear in the message (otherwise the quiz is spoiled).
     const out = formatContextMessage(q);
@@ -43,23 +60,20 @@ describe('formatContextMessage', () => {
   });
 
   it('never leaks the explanation (the "why") before the reader votes', () => {
-    // The explanation is revealed by Telegram only after voting. It must
-    // never appear in the context message for any question in either pool.
-    // (We check the explanation rather than the raw option text because a
-    // few questions, like "which is larger, 2/3 or 3/5?", legitimately
-    // restate a value in the prompt itself.)
-    for (const item of [...warmupQuestions, ...challengeQuestions]) {
+    // The explanation is revealed by Telegram only after voting; it must never
+    // appear in the context message, which carries only scenario, prompt, hint.
+    for (const item of allSamples) {
       expect(formatContextMessage(item), item.id).not.toContain(item.explanation);
     }
   });
 
   it('shows the right difficulty badge', () => {
-    expect(formatContextMessage(warmupQuestions[0]!)).toContain('Warm-up');
-    expect(formatContextMessage(challengeQuestions[0]!)).toContain('Challenge');
+    expect(formatContextMessage(warmupSamples[0]!)).toContain('Warm-up');
+    expect(formatContextMessage(challengeSamples[0]!)).toContain('Challenge');
   });
 
   it('stays well under the Telegram message limit of 4096', () => {
-    for (const item of [...warmupQuestions, ...challengeQuestions]) {
+    for (const item of allSamples) {
       expect(formatContextMessage(item).length, item.id).toBeLessThan(4096);
     }
   });
@@ -74,7 +88,7 @@ describe('poll helpers', () => {
     // The strings stay plain here; the kit applies the LTR bidi isolate at
     // send time (direction: 'ltr' in scheduler.ts), so these must NOT carry
     // any directional marks of their own.
-    const q = warmupQuestions[0]!;
+    const q = warmupSamples[0]!;
     expect(pollOptions(q)).toEqual(q.options);
     expect(pollOptions(q).length).toBe(4);
   });
@@ -94,7 +108,7 @@ describe('poll helpers', () => {
         );
       });
     expect(isBidiControl(pollQuestion())).toBe(false);
-    for (const item of [...warmupQuestions, ...challengeQuestions]) {
+    for (const item of allSamples) {
       for (const opt of pollOptions(item)) {
         expect(isBidiControl(opt), item.id).toBe(false);
       }
