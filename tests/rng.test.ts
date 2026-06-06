@@ -26,6 +26,15 @@ describe('mulberry32', () => {
     expect([...seen].sort()).toEqual([3, 4, 5, 6, 7]);
   });
 
+  it('int(min, max) returns min when the range is a single value', () => {
+    const rng = mulberry32(3);
+    for (let i = 0; i < 100; i++) expect(rng.int(5, 5)).toBe(5);
+  });
+
+  it('int throws when max is below min (a programming error)', () => {
+    expect(() => mulberry32(1).int(7, 3)).toThrowError();
+  });
+
   it('pick returns an element and shuffle is a permutation', () => {
     const rng = mulberry32(7);
     const arr = ['a', 'b', 'c', 'd'];
@@ -34,6 +43,16 @@ describe('mulberry32', () => {
     expect(shuffled).toHaveLength(arr.length);
     expect([...shuffled].sort()).toEqual([...arr].sort());
     expect(arr).toEqual(['a', 'b', 'c', 'd']); // shuffle does not mutate input
+  });
+
+  it('pick throws on an empty array; shuffle of an empty array is empty', () => {
+    const rng = mulberry32(7);
+    expect(() => rng.pick([])).toThrowError();
+    expect(rng.shuffle([])).toEqual([]);
+  });
+
+  it('shuffle of a single element returns that element', () => {
+    expect(mulberry32(7).shuffle(['only'])).toEqual(['only']);
   });
 });
 

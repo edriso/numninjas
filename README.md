@@ -39,11 +39,11 @@ If you would rather post just one a day, or split them across the day, it is a s
 | Packager | pnpm                                       |
 | Tests    | Vitest, no network                         |
 
-There is no database and no state of any kind. All the questions live in source files. To add or change a question, you edit a file and redeploy.
+There is no database and no state of any kind. Questions are generated each day from parametric templates in source files. To add a new kind of question, you edit a file and redeploy.
 
 ### Shared plumbing
 
-The generic, non-domain machinery (the logger, the `.env` loader, the timezone day math, the channel poster, the quiz poll with its close-window clamping, the node-cron registry with error containment, and the `/health` server) lives in a separate package, **telegram-broadcast-kit**, pinned by git tag (`github:edriso/telegram-broadcast-kit#v0.2.0`) and shared with the other channel-poster bots in this family. NumNinjas posts an HTML context message (`post(..., { parseMode: 'HTML' })`) and a quiz poll (`sendPoll(..., { type: 'quiz', correctOptionId, explanation })`) through that kit; only the question content, formatting, schedule, and dispatch stay here. The pin is auto-bumped by Renovate, and the deploy workflow runs `pnpm check` on every pull request so the bump is gated before merge.
+The generic, non-domain machinery (the logger, the `.env` loader, the timezone day math, the channel poster, the quiz poll with its close-window clamping, the node-cron registry with error containment, and the `/health` server) lives in a separate package, **telegram-broadcast-kit**, pinned by git tag (`github:edriso/telegram-broadcast-kit#v0.2.2`) and shared with the other channel-poster bots in this family. NumNinjas posts an HTML context message (`post(..., { parseMode: 'HTML' })`) and a quiz poll (`sendPoll(..., { type: 'quiz', correctOptionId, explanation, direction: 'ltr' })`) through that kit; only the question templates, the generator, formatting, schedule, and dispatch stay here. The pin is auto-bumped by Renovate, and the deploy workflow runs `pnpm check` on every pull request so the bump is gated before merge.
 
 ## Quick start
 
@@ -52,7 +52,7 @@ pnpm install
 cp .env.example .env          # optional, you can also pass env vars another way
 # fill in BOT_TOKEN and CHANNEL_CHAT_ID
 pnpm test                     # run the unit tests
-pnpm audit-questions          # sanity-check the question pools
+pnpm audit-questions          # fuzz every question template through thousands of seeds
 pnpm dev                      # run the bot locally
 ```
 
@@ -67,21 +67,21 @@ You will need a bot from `@BotFather` and a channel where you have added the bot
 
 Both questions fire from a single `0 7 * * *` cron. The cron runs in the timezone set by `TZ_NAME` (default UTC, the sample sets Africa/Cairo). Override the time with `DAILY_CRON`.
 
-## Picking is deterministic
+## Generation is deterministic
 
-The bot picks today's question by `dayOfYearInTimezone % poolLength`. That means:
+The bot generates today's question from a parametric template, seeded from the calendar day. That means:
 
-- The same calendar day always picks the same question, even if the cron restarts or refires.
-- The two pools advance independently. The repo ships with about 30 in each pool, which gives roughly a month of unique content per slot before any question repeats.
-- Add more questions and the cycle lengthens automatically. No config needed.
+- The same calendar day always produces the same question, even if the cron restarts or refires.
+- The numbers are fresh every day and every year, so a follower effectively never meets the same question twice within a year, while the topic rotates predictably (the template is chosen by day-of-year).
+- Add a template and you add a new topic; the numbers are already infinite. No config, no database.
 
 ## Adding a question
 
-See `docs/QUESTIONS.md`. The short version: append an object to `src/content/questions-warmup.ts` or `src/content/questions-challenge.ts`, then run `pnpm audit-questions` and `pnpm test`. If both pass, redeploy.
+See `docs/QUESTIONS.md`. The short version: add a `QuestionTemplate` to `src/content/templates-warmup.ts` or `src/content/templates-challenge.ts` whose `generate(rng)` draws the day's numbers and returns the answer plus three believable wrong turns, then run `pnpm audit-questions` and `pnpm test`. If both pass, redeploy.
 
 ## Why no database (and no state at all)
 
-A daily question channel does not need user accounts, saved votes, or a leaderboard. Telegram tallies the quiz polls itself. The bot is completely stateless: it picks the day's questions from a deterministic formula and posts them. There are no databases, no migrations, and no pointer files to back up or persist. Fewer parts means fewer things that can break, and no privacy footprint, which matters doubly when the audience is children.
+A daily question channel does not need user accounts, saved votes, or a leaderboard. Telegram tallies the quiz polls itself. The bot is completely stateless: it generates the day's questions from a deterministic, day-seeded formula and posts them. There are no databases, no migrations, and no pointer files to back up or persist. Fewer parts means fewer things that can break, and no privacy footprint, which matters doubly when the audience is children.
 
 ## Environment variables
 
@@ -101,7 +101,7 @@ The `.env` file itself is optional. Production hosts that inject env vars direct
 | `pnpm build`              | Type-check and compile TypeScript to `dist/`                         |
 | `pnpm test`               | Run unit tests (no network)                                          |
 | `pnpm typecheck`          | TypeScript with no emit                                              |
-| `pnpm audit-questions`    | Validate the question pools (option length, id uniqueness, etc.)     |
+| `pnpm audit-questions`    | Fuzz every question template through thousands of seeds              |
 | `pnpm send-test [mode]`   | Fire a question into the channel now. mode = warmup, challenge, both |
 | `pnpm post-welcome [id?]` | Post the channel welcome message, or edit it in place by id          |
 | `pnpm format`             | Prettier across the repo                                             |

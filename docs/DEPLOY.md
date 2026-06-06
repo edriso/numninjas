@@ -107,7 +107,7 @@ The image is a few hundred MB. There is nothing to mount; logs go to stdout.
 - **No post arrived.** Check the logs for `Schedule fired` then `Failed to post`. The most common cause is the bot is not an admin in the channel or "Post messages" is off.
 - **403 from Telegram on send.** Bot is not a channel admin, or "Post messages" is off.
 - **400 "message is too long".** A question exceeded 4096 chars. Run `pnpm audit-questions`; the render budget check should catch it first.
-- **Wrong question for today.** The picker is deterministic per date and pool length. Adding a new question shifts the cycle. That is expected.
+- **Wrong question for today.** Questions are generated deterministically from the calendar day, so the same date always yields the same question. Adding or reordering a template changes which topic falls on a given day. That is expected.
 - **Posts arrive at the wrong time.** Check `TZ_NAME` and `DAILY_CRON`. The cron runs in the configured timezone, not the host's.
 
 ## Backups
